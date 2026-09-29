@@ -1,0 +1,41 @@
+allowBuilds:
+  '@prisma/engines': true
+  bcrypt: set this to true or false
+  esbuild: true
+  prisma: true
+  sharp: true
+minimumReleaseAgeExclude:
+  - tsx@4.22.4 || 4.23.9 || 4.23.12
+  - '@types/react@19.2.16'
+  - '@typescript-eslint/eslint-plugin@8.60.1 || 8.67.0 || 8.70.1 || 8.71.0'
+  - '@typescript-eslint/parser@8.60.1 || 8.67.0 || 8.70.1 || 8.71.0'
+  - '@typescript-eslint/project-service@8.60.1 || 8.67.0 || 8.70.1 || 8.71.0'
+  - '@typescript-eslint/scope-manager@8.60.1 || 8.67.0 || 8.70.1 || 8.71.0'
+  - '@typescript-eslint/tsconfig-utils@8.60.1 || 8.67.0 || 8.70.1 || 8.71.0'
+  - '@typescript-eslint/type-utils@8.60.1 || 8.67.0 || 8.70.1 || 8.71.0'
+  - '@typescript-eslint/types@8.60.1 || 8.67.0 || 8.70.1 || 8.71.0'
+  - '@typescript-eslint/typescript-estree@8.60.1 || 8.67.0 || 8.70.1 || 8.71.0'
+  - '@typescript-eslint/utils@8.60.1 || 8.67.0 || 8.70.1 || 8.71.0'
+  - '@typescript-eslint/visitor-keys@8.60.1 || 8.67.0 || 8.70.1 || 8.71.0'
+  - react-dom@19.2.7
+  - react@19.2.7
+  - typescript-eslint@8.60.1 || 8.67.0 || 8.70.1 || 8.71.0
+  - '@astrojs/node@10.1.3 || 11.1.0 || 11.1.6'
+  - '@astrojs/react@5.0.7 || 6.0.6 || 7.0.0'
+  - astro@6.4.3 || 7.2.0 || 7.3.3 || 7.3.4 || 7.3.5
+  - pg-protocol@1.16.0
+  - pg@8.23.0
+  - nodemailer@10.0.8 || 10.0.10 || 10.0.11 || 10.0.12
+  - '@types/nodemailer@8.0.2'
+  - '@vitest/mocker@5.0.1'
+  - '@vitest/spy@5.0.1'
+  - vitest@5.0.1
+  - eslint-plugin-astro@3.2.0 || 3.2.1
+  - prettier@3.9.7 || 3.9.8 || 3.9.9
+  - dotenv@18.0.0 || 18.0.1 || 18.0.2 || 18.0.3
+  - prettier-plugin-astro@1.0.1 || 1.1.0
+  - '@types/node@26.6.2'
+  - eslint@10.11.0
+  - '@astrojs/markdown-satteri@0.4.2'
+  - astro-eslint-parser@3.2.0
+  - hono@4.13.9 || 4.13.10

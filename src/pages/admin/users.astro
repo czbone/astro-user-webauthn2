@@ -1,0 +1,18 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import AdminUsersSection from '@/components/AdminUsersSection'
+import { getPageSession, redirectForAuth } from '@/lib/auth-page'
+
+const session = await getPageSession(Astro.cookies)
+const redirectTo = redirectForAuth(session, { requireAdmin: true })
+if (redirectTo) {
+  return Astro.redirect(redirectTo)
+}
+---
+
+<Layout title="ユーザー管理">
+  <main class="mx-auto max-w-5xl px-4 py-10">
+    <h1 class="mb-6 text-2xl font-bold text-gray-900">ユーザー管理</h1>
+    <AdminUsersSection client:load />
+  </main>
+</Layout>

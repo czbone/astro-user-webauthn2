@@ -1,0 +1,55 @@
+# 依存関係
+node_modules/
+.pnpm-store/
+
+# ビルド成果物
+dist/
+.astro/
+
+# Git関連
+.git/
+.gitignore
+.github/
+
+# 環境変数ファイル
+.env
+.env.*
+!.env.example
+
+# ログファイル
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# エディタ設定
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS固有ファイル
+.DS_Store
+Thumbs.db
+
+# テスト関連
+coverage/
+.nyc_output/
+
+# ドキュメント
+README.md
+CHANGELOG.md
+LICENSE
+
+# Docker関連
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+
+# その他の開発ファイル
+.prettierrc
+.prettierignore
+.eslintrc
+.eslintignore
+tsconfig.tsbuildinfo

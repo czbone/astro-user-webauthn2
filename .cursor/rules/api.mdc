@@ -1,0 +1,23 @@
+---
+description: Hono API ルートの配置と認可
+globs: src/server/api/**/*.ts,src/fetch.ts,src/api-client/**/*.ts
+alwaysApply: false
+---
+
+# API
+
+- Hono ルートは `src/server/api/routes` に置き、`src/server/api/app.ts` で `/auth` `/admin` `/devices` `/posts` として集約する。
+- `src/pages/api` の Astro API Routes は使わない。
+- Prisma 操作は `src/server/db` 経由。ルートから直接 Prisma Client を呼ばない。
+- セッションは `loadSession` で Hono `Variables`（`user` / `sessionId`）に載せる。認可は `requireAuth` / `requirePasskey` / `requireAdmin`。投稿は加えて `requireAppGrant`。
+- 更新リクエストは `requireAuthOrigin` で、`Origin` が認証サーバーのオリジンと一致するときだけ受ける。
+- ブラウザ側は `src/api-client` 経由。`fetch` をコンポーネントに直書きしない。
+
+```ts
+// ❌ BAD
+const posts = await prisma.post.findMany()
+
+// ✅ GOOD
+const posts = await PostDB.listPublished()
+const user = c.get('user')
+```

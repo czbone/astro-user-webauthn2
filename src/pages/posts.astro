@@ -1,0 +1,35 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import PostsSection from '@/components/PostsSection'
+import { authEnv } from '@/server/auth/env'
+import { setSessionCookie, slideSession } from '@/server/auth/session'
+import { AppGrantDB } from '@/server/db'
+import { getPageSession, redirectForAuth } from '@/lib/auth-page'
+
+const session = await getPageSession(Astro.cookies, { refreshCookie: false })
+const redirectTo = redirectForAuth(session)
+if (redirectTo) {
+  return Astro.redirect(redirectTo)
+}
+
+const grant = await AppGrantDB.findByUserAndApp(session!.user.id, authEnv.appId())
+const rawPermission = grant?.permission
+const permission = rawPermission === 'admin' || rawPermission === 'user' ? rawPermission : null
+if (permission) {
+  await slideSession(session!)
+  setSessionCookie(Astro.cookies, session!.token)
+} else {
+  Astro.response.status = 403
+}
+---
+
+<Layout title="投稿">
+  <main class="mx-auto max-w-4xl px-4 py-10">
+    <h1 class="mb-6 text-2xl font-bold text-gray-900">投稿</h1>
+    {permission ? (
+      <PostsSection client:load currentUserId={session!.user.id} />
+    ) : (
+      <p class="text-gray-700">このアプリを利用する権限がありません</p>
+    )}
+  </main>
+</Layout>

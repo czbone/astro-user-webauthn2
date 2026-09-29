@@ -1,0 +1,23 @@
+---
+description: Astro ページと React Islands の指針
+globs: src/pages/**/*.astro,src/layouts/**/*.astro,src/components/**/*.tsx
+alwaysApply: false
+---
+
+# Astro / React
+
+- ページ認可は `getPageSession` / `redirectForAuth`（`src/lib/auth-page.ts`）を使う。
+- Layout / Navigation などページ frontmatter 以外では `refreshCookie: false`（送信後の Cookie set は警告になる）。
+- React はフォームや対話部分に限定し、`useState` と素直なハンドラを優先する。
+- ブラウザからの API 呼び出しは必ず `src/api-client` 経由。
+- mutation 成功後は `window.location.reload()` せず、再取得で state を更新する（認証完了時の遷移は除く）。
+
+```ts
+// ❌ BAD
+const session = await resolveSessionFromCookies(Astro.cookies)
+
+// ✅ GOOD
+const session = await getPageSession(Astro.cookies)
+const redirectTo = redirectForAuth(session, { requireAdmin: true })
+if (redirectTo) return Astro.redirect(redirectTo)
+```

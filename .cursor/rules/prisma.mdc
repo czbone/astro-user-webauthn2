@@ -1,0 +1,23 @@
+---
+description: Prisma Client と永続データの扱い
+globs: src/lib/prisma.ts,src/server/db/**/*.ts,prisma/**/*
+alwaysApply: false
+---
+
+# Prisma / DB
+
+- Prisma Client は `src/lib/prisma.ts` の `prisma` のみを使う。
+- import は `@/generated/prisma/client`。
+- ID は UUID（文字列）。
+- 永続データ（User / Credential / Post / App / AppGrant）の操作は `src/server/db` に置く。
+- Session / Invite / Reset / Magic / challenge / rate limit は Redis（`src/lib/redis.ts`、キーは `src/server/redis/keys.ts`）。
+
+```ts
+// ❌ BAD
+import { PrismaClient } from '@prisma/client'
+const prisma = new PrismaClient()
+
+// ✅ GOOD
+import { prisma } from '@/lib/prisma'
+import type { User } from '@/generated/prisma/client'
+```

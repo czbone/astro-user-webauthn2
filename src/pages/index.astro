@@ -1,0 +1,23 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import { getPageSession } from '@/lib/auth-page'
+
+const session = await getPageSession(Astro.cookies)
+
+if (!session) {
+  return Astro.redirect('/login')
+}
+if (session.user.mustSetupPasskey) {
+  return Astro.redirect('/setup-passkey')
+}
+if (session.user.role === 'admin') {
+  return Astro.redirect('/dashboard')
+}
+return Astro.redirect('/posts')
+---
+
+<Layout title="Home">
+  <main class="mx-auto max-w-3xl px-4 py-10">
+    <p class="text-gray-600">リダイレクト中...</p>
+  </main>
+</Layout>

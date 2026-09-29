@@ -1,0 +1,53 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import { getPageSession, redirectForAuth } from '@/lib/auth-page'
+import { PostDB, UserDB } from '@/server/db'
+
+const session = await getPageSession(Astro.cookies)
+const redirectTo = redirectForAuth(session, { requireAdmin: true })
+if (redirectTo) {
+  return Astro.redirect(redirectTo)
+}
+
+const [userCount, adminCount, postCount, publishedPostCount] = await Promise.all([
+  UserDB.count(),
+  UserDB.countAdmins(),
+  PostDB.count(),
+  PostDB.countPublished()
+])
+---
+
+<Layout title="ダッシュボード">
+  <main class="mx-auto max-w-4xl px-4 py-10">
+    <h1 class="mb-6 text-2xl font-bold text-gray-900">管理者ダッシュボード</h1>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="rounded-lg bg-white p-6 shadow">
+        <p class="text-sm text-gray-500">ユーザー数</p>
+        <p class="text-3xl font-semibold text-gray-900">{userCount}</p>
+      </div>
+      <div class="rounded-lg bg-white p-6 shadow">
+        <p class="text-sm text-gray-500">管理者数</p>
+        <p class="text-3xl font-semibold text-gray-900">{adminCount}</p>
+      </div>
+      <div class="rounded-lg bg-white p-6 shadow">
+        <p class="text-sm text-gray-500">投稿数</p>
+        <p class="text-3xl font-semibold text-gray-900">{postCount}</p>
+      </div>
+      <div class="rounded-lg bg-white p-6 shadow">
+        <p class="text-sm text-gray-500">公開投稿数</p>
+        <p class="text-3xl font-semibold text-gray-900">{publishedPostCount}</p>
+      </div>
+    </div>
+    <div class="mt-8 flex gap-4">
+      <a href="/admin/users" class="rounded bg-gray-800 px-4 py-2 text-white hover:bg-gray-700">
+        ユーザー管理
+      </a>
+      <a
+        href="/posts"
+        class="rounded border border-gray-300 px-4 py-2 text-gray-800 hover:bg-gray-50"
+      >
+        投稿へ
+      </a>
+    </div>
+  </main>
+</Layout>

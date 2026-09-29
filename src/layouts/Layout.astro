@@ -1,0 +1,26 @@
+---
+import '@/styles/global.css'
+import Navigation from '@/layouts/Navigation.astro'
+
+interface Props {
+  title: string
+}
+
+const { title } = Astro.props
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="WebAuthn user authentication app" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+  </head>
+  <body class="bg-gray-50">
+    <Navigation />
+    <slot />
+  </body>
+</html>

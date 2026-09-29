@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id          String               @id @default(uuid())
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  email       String               @unique
+  password    String
+  name        String
+  role        String
+  credentials WebAuthnCredential[]
+  posts       Post[]
+  grants      AppGrant[]
+}
+
+model App {
+  id           String     @id
+  name         String
+  origin       String     @unique
+  redirectUris String[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  grants       AppGrant[]
+}
+
+model AppGrant {
+  id         String   @id @default(uuid())
+  userId     String
+  appId      String
+  permission String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  app        App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, appId])
+  @@index([appId])
+}
+
+model WebAuthnCredential {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String    @unique
+  publicKey    Bytes
+  counter      BigInt
+  transports   String?
+  deviceName   String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([userId])
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+}

@@ -1,0 +1,100 @@
+---
+import LogoutButton from '@/components/LogoutButton'
+import { getPageSession } from '@/lib/auth-page'
+
+const currentPath = Astro.url.pathname
+// Layout 配下では Cookie を書き換えない（Astro はページ frontmatter 以外での set を拒否する）
+const session = await getPageSession(Astro.cookies, { refreshCookie: false })
+const user = session?.user
+---
+
+<nav class="bg-gray-800 text-white">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="flex h-16 items-center justify-between">
+      <div class="flex items-center">
+        <div class="flex-shrink-0">
+          <h1 class="text-xl font-bold">User WebAuthn</h1>
+        </div>
+        {user && !user.mustSetupPasskey && (
+          <div class="ml-10 flex items-baseline space-x-4">
+            {user.role === 'admin' && (
+              <>
+                <a
+                  href="/dashboard"
+                  class={`rounded-md px-3 py-2 text-sm font-medium ${
+                    currentPath === '/dashboard'
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  }`}
+                >
+                  ダッシュボード
+                </a>
+                <a
+                  href="/admin/users"
+                  class={`rounded-md px-3 py-2 text-sm font-medium ${
+                    currentPath.startsWith('/admin/users')
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  }`}
+                >
+                  ユーザー管理
+                </a>
+                <a
+                  href="/admin/apps"
+                  class={`rounded-md px-3 py-2 text-sm font-medium ${
+                    currentPath.startsWith('/admin/apps')
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  }`}
+                >
+                  アプリ
+                </a>
+              </>
+            )}
+            <a
+              href="/posts"
+              class={`rounded-md px-3 py-2 text-sm font-medium ${
+                currentPath === '/posts'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+              }`}
+            >
+              投稿
+            </a>
+            <a
+              href="/devices"
+              class={`rounded-md px-3 py-2 text-sm font-medium ${
+                currentPath === '/devices'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+              }`}
+            >
+              デバイス
+            </a>
+          </div>
+        )}
+      </div>
+      <div class="flex items-center gap-3">
+        {user ? (
+          <>
+            <span class="hidden text-sm text-gray-300 sm:inline">
+              {user.name}（{user.role}）
+            </span>
+            <LogoutButton client:load />
+          </>
+        ) : (
+          <a
+            href="/login"
+            class={`rounded-md px-3 py-2 text-sm font-medium ${
+              currentPath === '/login'
+                ? 'bg-gray-900 text-white'
+                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+            }`}
+          >
+            ログイン
+          </a>
+        )}
+      </div>
+    </div>
+  </div>
+</nav>

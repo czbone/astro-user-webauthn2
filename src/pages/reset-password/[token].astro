@@ -1,0 +1,15 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import ResetPasswordForm from '@/components/ResetPasswordForm'
+
+const { token } = Astro.params
+if (!token) {
+  return Astro.redirect('/forgot-password')
+}
+---
+
+<Layout title="復旧用パスワード">
+  <main class="mx-auto max-w-3xl px-4 py-10">
+    <ResetPasswordForm client:load token={token} />
+  </main>
+</Layout>

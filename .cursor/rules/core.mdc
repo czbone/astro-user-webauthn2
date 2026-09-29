@@ -1,0 +1,27 @@
+---
+description: スタック、配置、スタイル、仕様の正本
+alwaysApply: true
+---
+
+# コア規約
+
+- Astro 7 SSR + Node アダプター。対話部分だけ React 19 Islands（`client:load`）。
+- Prisma 7 + PostgreSQL、`@prisma/adapter-pg`。セッション等の短命データは Redis。
+- API は Hono（Advanced routing）。パスキーは `@simplewebauthn/*`。メールは nodemailer（`MAIL_MODE=console|smtp`）。
+- スタイルは Tailwind CSS 4。パッケージマネージャは pnpm。
+- 仕様の正本: `docs/specification.md`、`docs/session-management.md`、`docs/redis.md`。
+
+## 配置
+
+- ページ: `src/pages` / React: `src/components` / 共通: `src/lib`
+- 認証: `src/server/auth` / DB: `src/server/db` / API: `src/server/api` / ブラウザ API: `src/api-client`
+- エントリは `src/fetch.ts`。`astro/hono` の `middleware()` → `/api` → `pages()` の順を崩さない。
+
+## スタイル
+
+- インポートは `@/*`。TypeScript strict。`any` 禁止。
+- セミコロンなし、シングルクォート。UI / エラーメッセージは日本語。
+
+## コマンド
+
+`pnpm dev` / `pnpm lint` / `pnpm build` / `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:seed`
