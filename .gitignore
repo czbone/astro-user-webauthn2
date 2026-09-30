@@ -21,9 +21,4 @@ pnpm-debug.log*
 # macOS-specific files
 .DS_Store
 
-# npm files
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-
 /src/generated/prisma
