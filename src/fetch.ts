@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import { App } from 'astro/app'
 import { middleware, pages } from 'astro/hono'
 import api from '@/server/api/app'
+import { redirectToCanonicalHost } from '@/server/auth/canonical-host'
+import { authEnv } from '@/server/auth/env'
 import { handleHandoff } from '@/server/auth/handoff'
 import { validateRuntimeEnv } from '@/server/env-check'
 
@@ -21,6 +23,10 @@ app.use(pages())
  */
 export default {
   async fetch(request: Request): Promise<Response> {
+    if (!authEnv.isProduction()) {
+      const redirect = redirectToCanonicalHost(request)
+      if (redirect) return redirect
+    }
     const response = await app.fetch(request)
     for (const setCookie of App.getSetCookieFromResponse(response)) {
       response.headers.append('Set-Cookie', setCookie)
