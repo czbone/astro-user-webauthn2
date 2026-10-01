@@ -41,3 +41,4 @@ minimumReleaseAgeExclude:
   - hono@4.13.9 || 4.13.10 || 4.13.12
   - pg-cloudflare@1.4.1
   - pg-connection-string@2.14.1
+  - globals@17.13.0

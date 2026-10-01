@@ -152,8 +152,8 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 - `REDIS_URL`（本番必須、既定 `redis://localhost:6379/`）
 - `REDIS_KEY_PREFIX`（任意）
 - `SESSION_MAX_AGE_SECONDS`（任意、既定 `2592000`）
-- `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN`
-- `APP_URL`
+- `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN`（開発既定は RP ID `auth.localhost`、オリジン `http://auth.localhost:3000`。RP ID は認証サーバーのホスト名）
+- `APP_URL`（開発既定 `http://auth.localhost:3000`。本番では `WEBAUTHN_ORIGIN` と origin が一致すること）
 - `APP_ID`（認証サーバー自身の `App.id`。既定 `auth`）
 - `PARENT_DOMAIN`（直下サブドメインの親。開発既定 `localhost`）
 - `MAIL_MODE` / `SMTP_*`
@@ -165,6 +165,9 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 
 ## セキュリティ上の必須事項
 
+- 変更系 API（POST / PUT / PATCH / DELETE）は `Origin` が認証サーバーのオリジン（`WEBAUTHN_ORIGIN`）と一致しないとき 403（`オリジンが不正です`）
+- 開発時（`NODE_ENV` が `production` でないとき）は、認証サーバー以外のホストへの GET / HEAD をそのオリジンへ 302 する。`pnpm dev` が表示する `http://localhost:3000` を開いても `http://auth.localhost:3000` に移る
+- `__Host-session` はポートを区別しない。ローカルのホストは `localhost` ではなく `auth.localhost` とし、別ポートのアプリとセッションが混ざらないようにする
 - DeviceInvite / PasswordReset / MagicLink は短命・単回使用（目安: 1h）
 - ログイン・再設定・マジックリンク発行に簡易レート制限（Redis 固定ウィンドウ）
 - パスキー未設定セッションは setup / logout / me 以外を拒否

@@ -17,7 +17,7 @@ pnpm test:watch
 
 対象:
 
-- `src/server/auth/*.test.ts` — パスワード・トークン・レート制限・チャレンジなどの純関数
+- `src/server/auth/*.test.ts` — パスワード・トークン・レート制限・チャレンジ・開発時のホスト誘導などの純関数
 - `src/server/api/app.test.ts` — `app.request()` による API スモーク（未認証応答など）
 - `src/server/env-check.test.ts` — 本番の環境変数チェック
 - `src/server/db-log.test.ts` — Prisma のログレベル
@@ -87,16 +87,19 @@ pnpm db:seed
 pnpm dev
 ```
 
-`http://localhost:3000` で起動します。seed 管理者（`.env` の `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`）でパスワードログインし、パスキーを登録してください。
+`pnpm dev` は待受 URL として `http://localhost:3000` を表示します。ページを開くと、開発中は認証サーバーのオリジン `http://auth.localhost:3000` へ移ります。ログインとパスキー登録はこのホストで行います。`localhost` のまま変更リクエストを送ると `Origin` が一致せず、「オリジンが不正です」になります。
+
+seed 管理者（`.env` の `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`）は、メールアドレスを入れて「続行」したあと、表示されたパスワード欄に `SEED_ADMIN_PASSWORD` を入れてログインし、パスキーを登録してください。投稿を使うには、管理画面で認証サーバーアプリへの `AppGrant` を付けます。
 
 ローカルでは `MAIL_MODE=console` のため、招待・再設定メールはサーバーログに出力されます。
 
-WebAuthn はブラウザのパスキー UI が必要です（`localhost` + `WEBAUTHN_RP_ID=localhost` でローカル検証を想定）。
+WebAuthn の RP ID は `WEBAUTHN_RP_ID`（開発既定 `auth.localhost`）です。ブラウザのパスキー UI が必要です。
 
 ### 確認フロー
 
 | 流れ | 画面 / API |
 |------|------------|
+| seed 管理者の初回ログイン → パスキー登録 | `/login`（メール → パスワード）→ `/setup-passkey` |
 | 初回マジックリンクログイン → パスキー登録 | `/auth/link/[token]` → `/setup-passkey` |
 | 以降のパスキーログイン | `/login` |
 | 管理者によるユーザー招待 | `/admin/users`（ログの招待リンク） |

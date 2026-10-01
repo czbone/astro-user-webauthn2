@@ -76,7 +76,7 @@ Path=/
 Max-Age=2592000
 ```
 
-`Domain` は付けません。`__Host-` が `Secure`、`Path=/`、`Domain` なしを強制します。
+`Domain` は付けません。`__Host-` が `Secure`、`Path=/`、`Domain` なしを強制します。Cookie はホスト単位で、ポートは区別されません。ローカルでは `auth.localhost` を使い、別ポートの `localhost` とセッションが混ざらないようにします。開発サーバーは `http://localhost:3000` でも待ち受けますが、本番以外ではページの GET / HEAD を `WEBAUTHN_ORIGIN`（既定 `http://auth.localhost:3000`）へリダイレクトします。
 
 `Max-Age` の既定は 30 日（`SESSION_MAX_AGE_SECONDS`、未設定時 `2592000`）。ブラウザを閉じても Cookie は残ります。
 
