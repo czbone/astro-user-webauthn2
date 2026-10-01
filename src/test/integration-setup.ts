@@ -1,7 +1,5 @@
 import 'dotenv/config'
-import { Hono } from 'hono'
 import { vi } from 'vitest'
-import { authServerOrigin } from '@/server/auth/app-registration'
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL
 if (!testDatabaseUrl) {
@@ -14,12 +12,20 @@ process.env.DATABASE_URL = testDatabaseUrl
 process.env.REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379/'
 process.env.REDIS_KEY_PREFIX = process.env.REDIS_KEY_PREFIX || `astro-webauthn-test:${process.pid}:`
 
-const originalRequest = Hono.prototype.request
-Hono.prototype.request = function (input, requestInit, env) {
-  const method = (
-    requestInit?.method ?? (input instanceof Request ? input.method : 'GET')
-  ).toUpperCase()
-  if (method !== 'GET' && method !== 'HEAD') {
+// Hono 4 の request はプロトタイプではなくインスタンスフィールドなので、生成後に差し替える。
+vi.mock('hono', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('hono')>()
+  const { authServerOrigin } = await import('@/server/auth/app-registration')
+
+  function ensureOrigin(
+    input: string | URL | Request,
+    requestInit?: RequestInit
+  ): RequestInit | undefined {
+    const method = (
+      requestInit?.method ?? (input instanceof Request ? input.method : 'GET')
+    ).toUpperCase()
+    if (method === 'GET' || method === 'HEAD') return requestInit
+
     const headers = new Headers(
       requestInit?.headers ?? (input instanceof Request ? input.headers : undefined)
     )
@@ -28,10 +34,23 @@ Hono.prototype.request = function (input, requestInit, env) {
     } else if (!headers.has('origin')) {
       headers.set('origin', authServerOrigin())
     }
-    requestInit = { ...requestInit, headers }
+    return { ...requestInit, headers }
   }
-  return originalRequest.call(this, input, requestInit, env)
-}
+
+  class TestHono extends actual.Hono {
+    constructor(...args: ConstructorParameters<typeof actual.Hono>) {
+      super(...args)
+      const originalRequest = this.request
+      this.request = (input, requestInit, env, executionCtx) =>
+        originalRequest(input, ensureOrigin(input, requestInit), env, executionCtx)
+    }
+  }
+
+  return {
+    ...actual,
+    Hono: TestHono
+  }
+})
 
 vi.mock('@/server/auth/mail', () => ({
   sendPasswordResetMail: vi.fn(),
