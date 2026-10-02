@@ -151,7 +151,7 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 - `DATABASE_URL`
 - `REDIS_URL`（本番必須、既定 `redis://localhost:6379/`。認証サーバーは読み書きできるユーザー）
 - `REDIS_KEY_PREFIX`（任意）
-- `PARTICIPANT_REDIS_PASSWORD`（任意。設定時、起動のたびに参加アプリ共通の Redis ユーザー `app_participant` を用意する。未設定なら作らない）
+- `PARTICIPANT_REDIS_PASSWORD`（任意。設定時、プロセス起動後の最初のリクエストで参加アプリ共通の Redis ユーザー `app_participant` を用意する。未設定なら作らない。手順と `SET` を与えない理由は [redis.md](./redis.md)）
 - `SESSION_MAX_AGE_SECONDS`（任意、既定 `2592000`）
 - `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN`（開発既定は RP ID `auth.localhost`、オリジン `http://auth.localhost:3000`。RP ID は認証サーバーのホスト名）
 - `APP_URL`（開発既定 `http://auth.localhost:3000`。本番では `WEBAUTHN_ORIGIN` と origin が一致すること）

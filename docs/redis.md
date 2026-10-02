@@ -163,7 +163,7 @@ DATABASE_URL="postgresql://app_participant:replace-me@localhost:5432/database_na
 
 Redis の ACL ユーザーは、全参加アプリで `app_participant` の1人です。アプリごとに作りません。認証サーバーの `REDIS_URL` は、これまでどおり読み書きできるユーザー（Coolify の Redis リソースが渡すユーザーを含む）のままです。
 
-`PARTICIPANT_REDIS_PASSWORD` があるとき、認証サーバーは起動のたびに、その接続で次のユーザーを上書きします。未設定なら作りません。パスワードは PostgreSQL の `app_participant` とは別です。Redis 7 のセレクタで、パターンごとにコマンドを分けます。`KEYS`、`SCAN`、セッションの `SET`、索引への `SADD` は与えません。
+`PARTICIPANT_REDIS_PASSWORD` があるとき、プロセス起動後の最初の HTTP リクエストの直前に、認証サーバーの `REDIS_URL` で `app_participant` を上書きします。`entrypoint.sh` では作りません。同じプロセスでは一度だけです。再起動すると、次のリクエストで再び上書きします。未設定なら作りません。パスワードは PostgreSQL の `app_participant` とは別です。Redis 7 のセレクタで、パターンごとにコマンドを分けます。`KEYS` と `SCAN` は与えません。セッションの `SET` と索引への `SADD` も与えません。参加アプリのサーバが侵害されても、パスキーを通さず、そのアプリの `AppGrant` を持つユーザーのセッションを作らせないためです。
 
 - `sess:*` の GET、EXPIRE、DEL
 - `handoff:*` の GET、GETDEL、DEL
