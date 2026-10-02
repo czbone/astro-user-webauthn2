@@ -5,7 +5,9 @@ import api from '@/server/api/app'
 import { redirectToCanonicalHost } from '@/server/auth/canonical-host'
 import { authEnv } from '@/server/auth/env'
 import { handleHandoff } from '@/server/auth/handoff'
+import { ensureParticipantRedisUser } from '@/server/auth/participant-redis-user'
 import { validateRuntimeEnv } from '@/server/env-check'
+import { redis } from '@/lib/redis'
 
 validateRuntimeEnv()
 
@@ -23,6 +25,9 @@ app.use(pages())
  */
 export default {
   async fetch(request: Request): Promise<Response> {
+    await ensureParticipantRedisUser({
+      call: (command, ...args) => redis.call(command, ...args)
+    })
     if (!authEnv.isProduction()) {
       const redirect = redirectToCanonicalHost(request)
       if (redirect) return redirect

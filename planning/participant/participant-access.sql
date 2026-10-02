@@ -5,7 +5,9 @@
 -- User.password、User.role、パスキーの公開鍵材料は与えません。
 -- WebAuthnCredential は件数だけを数えます（SELECT COUNT(id) ... WHERE "userId" = $1）。
 -- Redis ACL は docs/redis.md です。引き渡しの消費には GETDEL を含めます。
---   ACL SETUSER app_posts on >password ~sess:posts:* +get +expire +del ~handoff:posts:* +get +getdel +del ~sess:user:* +srem
+--   ACL SETUSER app_participant reset on >password (~sess:* +get +expire +del) (~handoff:* +get +getdel +del) (~sess:user:* +srem)
+-- 認証サーバーは PARTICIPANT_REDIS_PASSWORD があるとき、起動のたびにこのユーザーを上書きする。
+-- 未設定なら作らない。参加アプリの REDIS_URL は redis://app_participant:<password>@host:6379/
 
 -- CREATE ROLE app_participant LOGIN PASSWORD 'replace-me';
 -- GRANT CONNECT ON DATABASE your_database TO app_participant;

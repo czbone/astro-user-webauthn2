@@ -199,7 +199,7 @@ Cookie の属性はセクション 7 です。
 | `APP_ORIGIN` | このアプリのオリジン。スキーム、ホスト、ポートまで。パスは含めない。`Origin` 検査と `redirect_uri` に使う |
 | `AUTH_ORIGIN` | 認証サーバーのオリジン。引き渡しとパスキー設定への誘導先 |
 | `DATABASE_URL` | セクション 10 の参加アプリ用ロール |
-| `REDIS_URL` | セクション 10 の参加アプリ用 ACL ユーザー |
+| `REDIS_URL` | 全参加アプリ共通の Redis ユーザー `app_participant` |
 | `REDIS_KEY_PREFIX` | 認証サーバーと同じ値。実際のキーは `{REDIS_KEY_PREFIX}{論理キー}` |
 | `SESSION_MAX_AGE_SECONDS` | 認証サーバーと同じ値。未設定時は 2592000 |
 
@@ -224,11 +224,11 @@ PostgreSQL のひな型は [participant-access.sql](./participant/participant-ac
 | `User` | `id`、`email`、`name` の `SELECT` |
 | `WebAuthnCredential` | `id` と `userId` の `SELECT`（件数のみ） |
 | `App`、`AppGrant` | `SELECT` |
-| `sess:{APP_ID}:*` | `GET`、`EXPIRE`、`DEL` |
-| `handoff:{APP_ID}:*` | `GET`、`GETDEL`、`DEL` |
+| `sess:*` | `GET`、`EXPIRE`、`DEL` |
+| `handoff:*` | `GET`、`GETDEL`、`DEL` |
 | `sess:user:*` | `SREM` |
 
-`password`、`role`、`publicKey`、`counter`、`credentialId`、`transports` は与えません。セッションの `SET` と、ユーザー索引への `SADD` も与えません。コードの消費は `GETDEL` です。`GET` のあとに `DEL` する実装にはしません。
+Redis ユーザーは全参加アプリで共通です。このアプリが操作するのは `sess:{APP_ID}:*` と `handoff:{APP_ID}:*` だけです。`password`、`role`、`publicKey`、`counter`、`credentialId`、`transports` は与えません。セッションの `SET` と、ユーザー索引への `SADD` も与えません。コードの消費は `GETDEL` です。`GET` のあとに `DEL` する実装にはしません。
 
 ## 11. ローカル開発
 

@@ -161,16 +161,26 @@ DATABASE_URL="postgresql://app_participant:replace-me@localhost:5432/database_na
 
 共有テーブル（`User`、`WebAuthnCredential`、`App`、`AppGrant`、認証サーバーの `Post`）のマイグレーションは認証サーバーだけが行います。参加アプリ用ロールは `SELECT` だけなので、この接続ではテーブルを作成しません。アプリ固有のテーブルを書き始めるときは、そのテーブルへの書き込みをそのアプリのロールだけに与えます。
 
-Redis ACL は、`REDIS_KEY_PREFIX` を含めたプレフィックス単位にします。ACL ユーザーはアプリごとに作成します。参加アプリ `{appId}` に許すコマンドは次だけです。
+Redis の ACL ユーザーは、全参加アプリで `app_participant` の1人です。アプリごとに作りません。認証サーバーの `REDIS_URL` は、これまでどおり読み書きできるユーザー（Coolify の Redis リソースが渡すユーザーを含む）のままです。
 
-- `sess:{appId}:*` の GET、EXPIRE、DEL
-- `handoff:{appId}:*` の GET、GETDEL、DEL
+`PARTICIPANT_REDIS_PASSWORD` があるとき、認証サーバーは起動のたびに、その接続で次のユーザーを上書きします。未設定なら作りません。パスワードは PostgreSQL の `app_participant` とは別です。Redis 7 のセレクタで、パターンごとにコマンドを分けます。`KEYS`、`SCAN`、セッションの `SET`、索引への `SADD` は与えません。
+
+- `sess:*` の GET、EXPIRE、DEL
+- `handoff:*` の GET、GETDEL、DEL
 - `sess:user:*` の SREM
 
-セッションの SET と、ユーザー索引への SADD は与えません。引き渡しコードの消費は `GETDEL` です。例（プレフィックスが空のとき）:
+各参加アプリの実装が操作するのは、自分の `sess:{appId}:*` と `handoff:{appId}:*` だけです。ACL はアプリごとの分離を強制しません。引き渡しコードの消費は `GETDEL` です。
+
+`REDIS_KEY_PREFIX` があるときは、各パターンの先頭にそのプレフィックスを付けます。プレフィックスが空のときのコマンドは次です。
 
 ```text
-ACL SETUSER app_posts on >password ~sess:posts:* +get +expire +del ~handoff:posts:* +get +getdel +del ~sess:user:* +srem
+ACL SETUSER app_participant reset on >password (~sess:* +get +expire +del) (~handoff:* +get +getdel +del) (~sess:user:* +srem)
 ```
 
-`REDIS_KEY_PREFIX` があるときは、各パターンの先頭にそのプレフィックスを付けます。
+参加アプリの `REDIS_URL` は、このユーザーで同じ Redis へ接続します。
+
+```text
+REDIS_URL="redis://app_participant:replace-me@localhost:6379/"
+```
+
+`replace-me` は `PARTICIPANT_REDIS_PASSWORD` と同じ値です。Coolify の Redis ユーザーを参加アプリでもそのまま使う場合、この制限は掛からず、セッションの `SET` もできます。
