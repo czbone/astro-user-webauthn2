@@ -161,7 +161,7 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 - `DB_LOG_LEVEL`（任意。`silent` / `error` / `warn` / `info` / `query`。未設定は本番 `warn`、開発 `query`）
 - `RUN_SEED`（任意。`true` のとき起動時にシード。User が空のときだけ管理者を作成。本番では `SEED_ADMIN_PASSWORD` に既定値以外が必要）
 
-詳細は [redis.md](./redis.md)。
+詳細は [redis.md](./redis.md)。参加アプリ用の PostgreSQL ロールと Redis ACL ユーザーの作成手順は、同ファイルの「参加アプリの接続権限」です。
 
 ## セキュリティ上の必須事項
 

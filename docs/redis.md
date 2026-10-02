@@ -29,7 +29,7 @@
 |----------|-----|-----|------|
 | `sess:{appId}:{tokenHash}` | string (JSON) | `SESSION_MAX_AGE_SECONDS`（既定 30 日） | セッション本体 |
 | `sess:user:{userId}` | set | 本体に合わせて維持 | ユーザーの `{appId}/{tokenHash}` 一覧（全失効用） |
-| `handoff:{appId}:{codeHash}` | string (JSON) | 60 秒 | 参加アプリへの引き渡し。単回使用 |
+| `handoff:{appId}:{codeHash}` | string (JSON) | 60 秒 | 参加アプリへの引き渡し。単回使用。消費は `GETDEL` |
 | `chal:{kind}:{userId}` | string (JSON) | 300 秒 | WebAuthn challenge（userId 付き） |
 | `chal:{kind}:{challenge}` | string (JSON) | 300 秒 | userId なしの challenge |
 | `chal:auth-challenge:{challenge}` | string (JSON) | 300 秒 | auth 用逆引き |
@@ -143,18 +143,34 @@ Redis は可用性の単一障害点になる。本番では永続化（AOF / RD
 
 参加アプリは自分の業務テーブルだけを書き、共有データは参照します。認証サーバーのプロセスは、これまでどおり読み書きできるロールで接続します。
 
-PostgreSQL では、参加アプリ用ロールに `User`、`WebAuthnCredential`、`App`、`AppGrant` の `SELECT` だけを与えます。手順のひな型は [scripts/participant-access.sql](../scripts/participant-access.sql) です。
+PostgreSQL では、参加アプリ用ロールに次の `SELECT` だけを与えます。`User.password`、`User.role`、パスキーの公開鍵・カウンタ・`credentialId`・`transports` は与えません。手順のひな型は [planning/participant/participant-access.sql](../planning/participant/participant-access.sql) です。
 
-Redis ACL は、`REDIS_KEY_PREFIX` を含めたプレフィックス単位にします。参加アプリ `{appId}` に許すコマンドは次だけです。
+- `User` の `id`、`email`、`name`
+- `WebAuthnCredential` の `id`、`userId`（件数用。`SELECT COUNT(id)`）
+- `App`、`AppGrant` の全列
 
-- `sess:{appId}:*` の GET、EXPIRE、DEL
-- `handoff:{appId}:*` の GET、DEL
-- `sess:user:*` の SREM
+このログインロールは、管理者が認証サーバーと同じデータベースへ一度だけ作成します。ひな型の `CREATE ROLE` と `GRANT` はコメントアウトされているので、データベース名とパスワードを置き換えてから実行します。認証サーバーの起動処理、Prisma のマイグレーション、参加アプリは、このコマンドを実行しません。
 
-セッションの SET と、ユーザー索引への SADD は与えません。例（プレフィックスが空のとき）:
+ロール名の例は `app_participant` です。列権限は参加アプリに共通なので、アプリを増やすたびにロールは作りません。各参加アプリの `DATABASE_URL` には、このロールで同じデータベースへ接続する文字列を設定します。
 
 ```text
-ACL SETUSER app_posts on >password ~sess:posts:* +get +expire +del ~handoff:posts:* +get +del ~sess:user:* +srem
+DATABASE_URL="postgresql://app_participant:replace-me@localhost:5432/database_name?schema=public"
+```
+
+`replace-me` は `CREATE ROLE` で決めたパスワードです。`database_name` は認証サーバーの `DATABASE_URL` と同じデータベース名です。認証サーバーの `DATABASE_URL` は、読み書きできる既存のユーザーのままにします。
+
+共有テーブル（`User`、`WebAuthnCredential`、`App`、`AppGrant`、認証サーバーの `Post`）のマイグレーションは認証サーバーだけが行います。参加アプリ用ロールは `SELECT` だけなので、この接続ではテーブルを作成しません。アプリ固有のテーブルを書き始めるときは、そのテーブルへの書き込みをそのアプリのロールだけに与えます。
+
+Redis ACL は、`REDIS_KEY_PREFIX` を含めたプレフィックス単位にします。ACL ユーザーはアプリごとに作成します。参加アプリ `{appId}` に許すコマンドは次だけです。
+
+- `sess:{appId}:*` の GET、EXPIRE、DEL
+- `handoff:{appId}:*` の GET、GETDEL、DEL
+- `sess:user:*` の SREM
+
+セッションの SET と、ユーザー索引への SADD は与えません。引き渡しコードの消費は `GETDEL` です。例（プレフィックスが空のとき）:
+
+```text
+ACL SETUSER app_posts on >password ~sess:posts:* +get +expire +del ~handoff:posts:* +get +getdel +del ~sess:user:* +srem
 ```
 
 `REDIS_KEY_PREFIX` があるときは、各パターンの先頭にそのプレフィックスを付けます。

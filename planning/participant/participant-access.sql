@@ -1,0 +1,15 @@
+-- 参加アプリ用の PostgreSQL ロールのひな型です。
+-- データベース名、ロール名、パスワードは環境に合わせて置き換えてください。
+-- 認証サーバー自身はこのロールを使わず、読み書きできる既存の接続のままです。
+--
+-- User.password、User.role、パスキーの公開鍵材料は与えません。
+-- WebAuthnCredential は件数だけを数えます（SELECT COUNT(id) ... WHERE "userId" = $1）。
+-- Redis ACL は docs/redis.md です。引き渡しの消費には GETDEL を含めます。
+--   ACL SETUSER app_posts on >password ~sess:posts:* +get +expire +del ~handoff:posts:* +get +getdel +del ~sess:user:* +srem
+
+-- CREATE ROLE app_participant LOGIN PASSWORD 'replace-me';
+-- GRANT CONNECT ON DATABASE your_database TO app_participant;
+-- GRANT USAGE ON SCHEMA public TO app_participant;
+-- GRANT SELECT (id, email, name) ON TABLE "User" TO app_participant;
+-- GRANT SELECT (id, "userId") ON TABLE "WebAuthnCredential" TO app_participant;
+-- GRANT SELECT ON TABLE "App", "AppGrant" TO app_participant;

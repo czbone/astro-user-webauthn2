@@ -1,6 +1,6 @@
 # 認証サーバーと複数アプリ
 
-本ファイルは、このアプリを認証サーバーとし、複数の Astro アプリでユーザーとアクセス範囲を共有する構成の仕様です。ログイン、パスキー、招待、復旧の手続き自体は [specification.md](../docs/specification.md) と [session-management.md](../docs/session-management.md) に従います。Redis の既存キーは [redis.md](../docs/redis.md) に従い、本ファイルは複数アプリで増えるキーと権限だけを定めます。
+本ファイルは、このアプリを認証サーバーとし、複数の Astro アプリでユーザーとアクセス範囲を共有する構成の仕様です。ログイン、パスキー、招待、復旧の手続き自体は [specification.md](../docs/specification.md) と [session-management.md](../docs/session-management.md) に従います。Redis の既存キーは [redis.md](../docs/redis.md) に従い、本ファイルは複数アプリで増えるキーと権限だけを定めます。参加アプリの実装手順は [participant-app.md](./participant-app.md) です。
 
 現行の実装は単一アプリです。本ファイルは、その先の構成仕様です。
 
@@ -34,7 +34,9 @@
 | ロール | `User` | `WebAuthnCredential` | `App` / `AppGrant` | そのアプリの業務テーブル |
 |--------|--------|----------------------|--------------------|--------------------------|
 | 認証サーバー | 読み書き | 読み書き | 読み書き | 認証サーバー自身の業務テーブルのみ |
-| 参加アプリ | 参照 | 参照（パスキー有無の算出） | 参照 | 読み書き |
+| 参加アプリ | `id` / `email` / `name` の参照 | `id` / `userId` の参照（件数だけ） | 参照 | 読み書き |
+
+参加アプリには `User.password`、`User.role`、`WebAuthnCredential` の公開鍵・カウンタ・`credentialId`・`transports` を与えません。
 
 `User.role` は認証サーバー上の権限です（ユーザー招待と `AppGrant` の編集）。参加アプリの画面権限には使いません。
 
@@ -45,7 +47,7 @@
 | ロール | 許可する操作 |
 |--------|----------------|
 | 認証サーバー | セッション、引き渡し、challenge、招待、再設定、マジックリンク、レート制限の読み書き |
-| 参加アプリ | `sess:{appId}:*` の GET、EXPIRE、DEL。`handoff:{appId}:*` の GET、DEL。`sess:user:*` の SREM |
+| 参加アプリ | `sess:{appId}:*` の GET、EXPIRE、DEL。`handoff:{appId}:*` の GET、GETDEL、DEL。`sess:user:*` の SREM |
 
 参加アプリはセッションの SET と、ユーザー索引への SADD を持ちません。引き渡しコードを消費したあと、自分でセッション行を作ることはできません。
 
@@ -101,7 +103,7 @@ TTL は現行どおり `SESSION_MAX_AGE_SECONDS`（既定 30 日、スライデ�
 
 キー: `handoff:{appId}:{codeHash}`
 
-TTL は 60 秒です。単回使用で、GET のあと DEL します。
+TTL は 60 秒です。単回使用で、消費は `GETDEL` です。`GET` のあとに `DEL` する実装にはしません。
 
 ```json
 {
@@ -131,12 +133,14 @@ TTL は 60 秒です。単回使用で、GET のあと DEL します。
 | 項目 | 仕様 |
 |------|------|
 | 名前 | `__Host-handoff` |
-| 値 | 暗号学的乱数の `state` |
+| 値 | `state` と、参加アプリ内の戻り先パス。形式は [participant-app.md](./participant-app.md) |
 | 属性 | `Secure`、`HttpOnly`、`SameSite=Lax`、`Path=/`、`Max-Age=300` |
 
 ## 5. ログインとアプリへの引き渡し
 
 パスキーの登録とログイン、招待マジックリンク、復旧は認証サーバーのオリジンだけで行います。手続きは [specification.md](../docs/specification.md) のとおりです。Credential が 1 件も無いセッションでは、引き渡しを発行しません。パスキー設定が終わるまで認証サーバー内に留めます。
+
+`state` は `^[\w.~-]{1,128}$` に一致する暗号学的乱数です。`redirect_uri` に `?` と `#` は含めません。オリジンは `App.origin` と一致し、値そのものが `App.redirectUris` に含まれるときだけ受けます。
 
 参加アプリにセッションが無いとき、そのアプリは自分でログイン画面を出さず、次の順で認証サーバーへ渡します。
 
@@ -157,7 +161,7 @@ redirect_uri?code=&state= へ 303
   ↓
 参加アプリ
   __Host-handoff の state とクエリの state が一致
-  handoff キーを GET して DEL
+  handoff キーを GETDEL
   値の state、userId、redirectUri が一致
   __Host-session を発行
   __Host-handoff を削除
@@ -180,13 +184,13 @@ GET sess:{appId}:{tokenHash}
   ↓
 無し、または値の appId が一致しない → Cookie を削除し未認証
   ↓
-PostgreSQL から User と Credential 件数を取得
+PostgreSQL から User（id, email, name）と Credential 件数を取得
   ↓
 Credential が 0 件 → 認証サーバーのパスキー設定へ誘導（TTL は延ばさない）
   ↓
 AppGrant が無い → 403（TTL は延ばさない）
   ↓
-EXPIRE と Cookie の Max-Age を更新
+EXPIRE sess:{appId}:{tokenHash} と Cookie の Max-Age を更新
   ↓
 ユーザーと、そのアプリの permission で処理
 ```
@@ -217,11 +221,11 @@ GET と HEAD は状態を変えません。POST、PUT、PATCH、DELETE は、`Or
 
 RP ID を親ドメインにしないので、他サブドメインは認証サーバー向けのパスキー認証を開始できません。
 
-## 9. 共有パッケージ
+## 9. 実装の置き場所
 
-セッション解決、Cookie の発行と削除、トークンハッシュ、`Origin` 検査は一つのパッケージに置きます。参加アプリと認証サーバーの両方が、それを呼び出します。
+セッション解決、Cookie の発行と削除、トークンハッシュ、`Origin` 検査の手続きは [participant-app.md](./participant-app.md) に書きます。共有パッケージは必須にしません。参加アプリは、その手続きを自分のプロセスで実装します。
 
-パッケージの外へ出す関数は、アプリ ID を受け取り、セクション 6 の順で許可まで確認したものだけです。Redis の生クライアントを使った回避は、セクション 2 の ACL でセッション作成ができないようにします。
+公開するセッション解決は、アプリ ID を受け取り、セクション 6 の順で許可まで確認したものだけです。Redis の生クライアントを使った回避は、セクション 2 の ACL でセッション作成ができないようにします。
 
 ## 10. 環境変数
 
@@ -250,7 +254,7 @@ Cookie はポートを区別しません。`localhost` の別ポートではホ�
 ## 12. 必須事項
 
 - セッション Cookie に `Domain` を付けない
-- 引き渡しコードは 60 秒、単回、`state` と `redirect_uri` の完全一致
+- 引き渡しコードは 60 秒、`GETDEL` の単回、`state` と `redirect_uri` の完全一致
 - `AppGrant` が無いユーザーにはセッションを作らず、既存セッションも TTL を延ばさない
 - 参加アプリの Redis 権限に、セッションの SET と索引の SADD を含めない
 - 更新リクエストは自オリジンの `Origin` だけを受ける
