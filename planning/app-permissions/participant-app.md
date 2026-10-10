@@ -1,47 +1,47 @@
 # 参加アプリ
 
-本ファイルでは、利用権限に関して参加アプリが担う処理を定めます。実効権限の判定には、[grant.md](grant.md) の手順だけを使います。引き渡しの消費、Cookie、ログアウト、オリジン検査は、認証サーバーの [participant-app.md](https://github.com/czbone/astro-user-webauthn2/blob/main/planning/participant-app.md) のとおりです。
+本ファイルでは、利用権限に関して参加アプリが担う処理を定めます。実効権限の判定には、[grant.md](grant.md) の手順だけを使います。引き渡しコードの消費、Cookie、ログアウト、オリジン検査は、認証サーバーの [participant-app.md](https://github.com/czbone/astro-user-webauthn2/blob/main/planning/participant-app.md) のとおりです。
 
 参加アプリは `App` と `AppGrant` を参照しますが、行の作成、既定の変更、マイグレーションは行いません。
 
-## 解決
+## アクセス可否の確認
 
 画面の表示と更新処理の前に、セッション、パスキー、実効権限の順で確認します。`User.role` は参照しません。
 
 ```text
-__Host-session
+__Host-session の値を取得する
   ↓
-SHA-256（hex 小文字）
+SHA-256 でハッシュ化する（16進数の小文字）
   ↓
-GET sess:{APP_ID}:{tokenHash}
+セッションを取得する（GET sess:{APP_ID}:{tokenHash}）
   ↓
 キーがない、JSON ではない、値の appId が APP_ID と異なる
-  → Cookie を削除。キーがある場合は DEL。userId があれば索引から SREM。未認証として扱う
+  → Cookie を削除する。セッションキーがあれば削除する（DEL）。userId があれば、ユーザー索引からこのセッションを外す（SREM）。未認証として扱う
   ↓
-User を id で取得（id, email, name だけ）
+User を id で取得する（id、email、name だけ）
   ↓
-行がない → セッションを DEL し、索引から SREM し、Cookie を削除。未認証として扱う
+User の行がない → セッションを削除し（DEL）、ユーザー索引からこのセッションを外し（SREM）、Cookie を削除する。未認証として扱う
   ↓
-WebAuthnCredential の件数
+パスキー（WebAuthnCredential）の件数を確認する
   ↓
-0 件 → TTL も Cookie の Max-Age も延長しない
-        画面のリクエストは AUTH_ORIGIN/setup-passkey へ 302
+0 件 → セッションの有効期限（TTL）も Cookie の Max-Age も延長しない
+        画面のリクエストは AUTH_ORIGIN/setup-passkey へリダイレクトする（302）
         更新リクエストには 403「先にパスキーを登録してください」を返す
   ↓
-grant.md の実効権限
+grant.md の手順で実効権限を判定する
   ↓
 付与なし
   → 403「このアプリを利用する権限がありません」を返す
-    Cookie は残す。TTL も Cookie の Max-Age も延長しない
+    Cookie は残す。セッションの有効期限（TTL）も Cookie の Max-Age も延長しない
     ログアウトだけは許可する
   ↓
 正の権限
-  → 画面のリクエストでは EXPIRE と Cookie の Max-Age を更新し、その権限に応じて表示する
+  → 画面のリクエストでは、セッションの有効期限を延長し（EXPIRE）、Cookie の Max-Age を更新する。その権限に応じて表示する
 ```
 
 未認証の画面リクエストでは引き渡しを開始します。未認証の更新リクエストには 401「ログインが必要です」を返し、引き渡しは開始しません。
 
-下位の権限による `/grants` へのアクセスを拒否するのは、実効権限が正の権限であることを確認した後です。この場合は、アクセスを拒否しても TTL を延長します。
+下位の権限による `/grants` へのアクセスを拒否するのは、実効権限が正の権限であることを確認した後です。この場合は、アクセスを拒否してもセッションの有効期限（TTL）を延長します。
 
 ## 画面
 
@@ -52,7 +52,7 @@ grant.md の実効権限
 | `admin` | 管理者 | `/` と `/grants`。下位の権限で許可された画面にもアクセスできる |
 | `user` | 利用者 | `/` |
 | 追加された正の権限 | 追加時に定めた表示 | `/` と、追加時にアクセスを許可した画面 |
-| 付与なし | 画面に権限は出さない | 403「このアプリを利用する権限がありません」 |
+| 付与なし | 画面に権限名は表示しない | 403「このアプリを利用する権限がありません」 |
 
 「付与一覧」へのリンクは、実効権限が `admin` の場合にだけ表示します。
 
@@ -90,7 +90,7 @@ WHERE g."appId" = $1
 ORDER BY u.email ASC
 ```
 
-接続ロールは `App` と `AppGrant` の `SELECT` を持ちます。`defaultPermission` は `App` の参照列に含めます。`User.role` は与えません。認証サーバー自身は参加アプリとしてこのアクセス解決を行わず、管理操作を `User.role` で認可します。
+データベース接続に使うロールには、`App` と `AppGrant` の参照権限（`SELECT`）を与えます。`defaultPermission` も `App` の参照対象に含めます。`User.role` の参照権限は与えません。認証サーバー自身は参加アプリとしてこのアクセス可否の確認を行わず、管理操作を `User.role` で認可します。
 
 ## 権限を追加するとき
 

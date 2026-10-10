@@ -12,6 +12,6 @@
 | --- | --- |
 | [grant.md](grant.md) | 認証サーバーと参加アプリが同じ手順で使う仕様 |
 | [auth-server.md](auth-server.md) | 認証サーバーの権限管理、管理画面/API、引き渡し条件 |
-| [participant-app.md](participant-app.md) | 参加アプリの解決、画面、参照する SQL |
+| [participant-app.md](participant-app.md) | 参加アプリのアクセス可否の確認、画面、参照する SQL |
 
 現在の実装では、利用者ごとの `AppGrant` が `admin` または `user` の場合にのみアクセスを許可します。本ディレクトリの文書は、今後の仕様を定めるものです。
