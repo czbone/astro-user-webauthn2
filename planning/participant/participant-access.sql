@@ -14,4 +14,5 @@
 -- GRANT USAGE ON SCHEMA public TO app_participant;
 -- GRANT SELECT (id, email, name) ON TABLE "User" TO app_participant;
 -- GRANT SELECT (id, "userId") ON TABLE "WebAuthnCredential" TO app_participant;
+-- App の defaultPermission は全列 SELECT に含まれる。User.role は与えない。
 -- GRANT SELECT ON TABLE "App", "AppGrant" TO app_participant;
