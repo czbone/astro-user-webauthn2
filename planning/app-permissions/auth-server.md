@@ -39,15 +39,15 @@ ALTER TABLE "App" ADD COLUMN "defaultPermission" TEXT NULL;
 
 `admin` を新たに既定として設定するときは、保存前に「個別の例外がない現在および今後のすべての利用者に管理者権限が適用される」ことを確認します。既定の変更は、行がない利用者に対して次回のリクエストから反映されます。個別の `AppGrant` がある利用者には既定を適用しません。新しい利用者についても `AppGrant` の行は作成せず、設定済みの既定を適用します。
 
-認証サーバー自身の `App` 行は対象外です。`isAuthServer` はデータベースに保存する列にはせず、`App.id === authEnv.appId()` に基づいて API 応答時に算出します。アプリ一覧では既定を「対象外」と表示して選択欄を設けず、API はその行への `defaultPermission` の設定を拒否します。
+認証サーバー自身の `App` 行は対象外です。`isAuthServer` はデータベースに保存する列にはせず、`App.id === authEnv.appId()` に基づいて API 応答時に算出します。アプリ一覧ではこの行を固定テキストにし、更新ボタンと削除ボタンは出しません。表示するのはアプリ ID、表示名、オリジン、既定「対象外」です。`redirectUris` が空のときは「戻り先 URL」を出さず、値があるときだけ固定テキストで出します。API は、その行への `PATCH` と `DELETE` を拒否します。`pnpm db:seed` が環境変数から `name` と `origin` を上書きする処理は残します。
 
 管理 API の契約は次のとおりです。
 
 | API | 入出力 |
 | --- | --- |
-| `GET /admin/apps` | 各アプリに `defaultPermission`（`null` / 現在の正の権限）と `isAuthServer`（`App.id === authEnv.appId()` で算出する真偽値）を含めて返す。UI は `isAuthServer = true` の行で既定を「対象外」と表示する |
+| `GET /admin/apps` | 各アプリに `defaultPermission`（`null` / 現在の正の権限）と `isAuthServer`（`App.id === authEnv.appId()` で算出する真偽値）を含めて返す。UI は `isAuthServer = true` の行を固定テキストにし、値がある項目だけ出す。既定は「対象外」と表示する |
 | `POST /admin/apps` | `id`、`name`、`origin`、`redirectUris`、`defaultPermission` を受け取る。`defaultPermission` は必須で `null` または現在の正の権限一覧のいずれか。認証サーバー自身の ID は登録できない |
-| `PATCH /admin/apps/:id` | `defaultPermission` が省略された場合は変更しない。指定時は `null` または現在の正の権限のいずれかを保存する。認証サーバー自身の行への指定は拒否する |
+| `PATCH /admin/apps/:id` | 参加アプリでは、`defaultPermission` が省略された場合は変更しない。指定時は `null` または現在の正の権限のいずれかを保存する。認証サーバー自身の行への `PATCH` は項目にかかわらず拒否する |
 | `GET /admin/grants` | 参加アプリの例外行を返す。各行に `id`、`userId`、`appId`、`permission` を含み、`none` の行も含める。認証サーバー自身の `App.id` の行は返さない |
 | `PUT /admin/grants` | `userId`、`appId`、`permission` を受け取る。`permission` は現在の正の権限または `none`。`(userId, appId)` の行がなければ作成し、あれば権限を上書きする（upsert） |
 | `DELETE /admin/grants/:userId/:appId` | 例外行を削除し、対象利用者をアプリ既定の判定に戻す。認証サーバー自身の `App.id` に対する作成・更新・削除は拒否する |

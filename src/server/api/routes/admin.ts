@@ -168,6 +168,9 @@ admin.post('/apps', async (c) => {
 admin.patch('/apps/:id', async (c) => {
   try {
     const id = c.req.param('id')
+    if (id === authEnv.appId()) {
+      return c.json({ error: '認証サーバーは変更できません' }, 400)
+    }
     const existing = await AppDB.findById(id)
     if (!existing) {
       return c.json({ error: 'アプリが見つかりません' }, 404)
@@ -195,9 +198,6 @@ admin.patch('/apps/:id', async (c) => {
       defaultPermission?: string | null
     } = validated.value
     if (Object.prototype.hasOwnProperty.call(body, 'defaultPermission')) {
-      if (id === authEnv.appId()) {
-        return c.json({ error: '認証サーバーの既定権限は設定できません' }, 400)
-      }
       const defaultPermission = readDefaultPermission(body.defaultPermission)
       if (!defaultPermission.ok) {
         return c.json({ error: '既定の権限が正しくありません' }, 400)

@@ -75,7 +75,7 @@ seed 管理者: 初期パスワードログイン → パスキー必須登録 �
 - 実効権限は `User.role` を見ない。`App` が無い、または `AppGrant` が `none`・空・一覧外なら付与なし。行があるときはその値を使い、既定へは進まない。行が無く既定が正の権限ならその既定。それ以外は付与なし
 - 例外行は既定を置き換える。高い方は取らない
 - セッション JSON に権限も `User.role` も載せない。既定や行の変更は次のリクエストから効き、セッションの作り直しは要らない
-- 認証サーバー自身の `App` 行は対象外。`isAuthServer` は `App.id === APP_ID` で算出し、列にはしない。そのアプリへの引き渡しと `AppGrant` の作成・更新・削除は拒否する
+- 認証サーバー自身の `App` 行は対象外。`isAuthServer` は `App.id === APP_ID` で算出し、列にはしない。そのアプリへの引き渡し、`App` 行の更新・削除、`AppGrant` の作成・更新・削除は拒否する。一覧では固定テキストにし、空の `redirectUris` は出さない
 
 ## データモデル
 
@@ -140,9 +140,9 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 
 - `GET /users` / `POST /users`（招待マジックリンク＋メール。`AppGrant` は自動では付かない）
 - `GET /stats`（ユーザー数と管理者数）
-- `GET /apps` は各アプリに `defaultPermission`（`null` または正の権限）と `isAuthServer` を含める
+- `GET /apps` は各アプリに `defaultPermission`（`null` または正の権限）と `isAuthServer` を含める。認証サーバーの行は固定テキストで、値がある項目だけ出す
 - `POST /apps` は `id`、`name`、`origin`、`redirectUris`、`defaultPermission` を受け取る。`defaultPermission` は必須で `null` または正の権限。認証サーバー自身の ID は登録できない
-- `PATCH /apps/:id` は `defaultPermission` を省略すると変えない。指定時は `null` または正の権限。認証サーバー自身への指定は拒否する。`id` と `origin` は変更しない
+- `PATCH /apps/:id` は、参加アプリでは `defaultPermission` を省略すると変えない。指定時は `null` または正の権限。`id` と `origin` は変更しない。認証サーバー自身への `PATCH` は拒否する
 - `DELETE /apps/:id` は認証サーバー自身を削除しない
 - `GET /grants` は参加アプリの例外行（`none` を含む）を返す。認証サーバー自身の行は返さない
 - `PUT /grants` は `userId`、`appId`、`permission`（正の権限または `none`）で upsert する。認証サーバー自身は拒否する

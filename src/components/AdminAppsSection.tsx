@@ -255,9 +255,13 @@ export default function AdminAppsSection() {
       </form>
 
       <section className="space-y-4">
-        {apps.map((app) => (
-          <AppEditor key={app.id} app={app} onUpdate={handleUpdate} onDelete={handleDelete} />
-        ))}
+        {apps.map((app) =>
+          app.isAuthServer ? (
+            <AuthServerAppView key={app.id} app={app} />
+          ) : (
+            <AppEditor key={app.id} app={app} onUpdate={handleUpdate} onDelete={handleDelete} />
+          )
+        )}
       </section>
 
       <form onSubmit={handleGrant} className="rounded-lg bg-white p-6 shadow">
@@ -347,6 +351,31 @@ export default function AdminAppsSection() {
   )
 }
 
+function AuthServerAppView({ app }: { app: AppRow }) {
+  return (
+    <section className="rounded-lg bg-white p-6 shadow">
+      <h2 className="mb-1 text-lg font-semibold text-gray-900">{app.id}</h2>
+      <p className="mb-3 text-sm text-gray-600">{app.origin}</p>
+      <dl className="space-y-2 text-sm text-gray-700">
+        <div>
+          <dt>表示名</dt>
+          <dd>{app.name}</dd>
+        </div>
+        <div>
+          <dt>既定の権限</dt>
+          <dd>対象外</dd>
+        </div>
+        {app.redirectUris.length > 0 ? (
+          <div>
+            <dt>戻り先 URL</dt>
+            <dd className="whitespace-pre-line">{app.redirectUris.join('\n')}</dd>
+          </div>
+        ) : null}
+      </dl>
+    </section>
+  )
+}
+
 function AppEditor({
   app,
   onUpdate,
@@ -365,10 +394,6 @@ function AppEditor({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (app.isAuthServer) {
-      void onUpdate(app, { name, redirectUris })
-      return
-    }
     const nextDefault = parseDefaultChoice(defaultChoice)
     if (nextDefault === undefined) return
     if (!confirmAdminDefault(app.defaultPermission, nextDefault)) return
@@ -398,23 +423,19 @@ function AppEditor({
             className="mt-1 w-full rounded border border-gray-300 px-3 py-2"
           />
         </label>
-        {app.isAuthServer ? (
-          <p className="text-sm text-gray-700 md:col-span-2">既定の権限: 対象外</p>
-        ) : (
-          <label className="block text-sm text-gray-700 md:col-span-2">
-            既定の権限
-            <select
-              required
-              value={defaultChoice}
-              onChange={(e) => setDefaultChoice(e.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-3 py-2"
-            >
-              <option value="null">個別に付与した人だけ</option>
-              <option value="user">全利用者に利用者権限</option>
-              <option value="admin">全利用者に管理者権限</option>
-            </select>
-          </label>
-        )}
+        <label className="block text-sm text-gray-700 md:col-span-2">
+          既定の権限
+          <select
+            required
+            value={defaultChoice}
+            onChange={(e) => setDefaultChoice(e.target.value)}
+            className="mt-1 w-full rounded border border-gray-300 px-3 py-2"
+          >
+            <option value="null">個別に付与した人だけ</option>
+            <option value="user">全利用者に利用者権限</option>
+            <option value="admin">全利用者に管理者権限</option>
+          </select>
+        </label>
       </div>
       <div className="flex gap-3">
         <button

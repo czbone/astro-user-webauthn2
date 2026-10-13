@@ -273,7 +273,7 @@ describe('admin integration', () => {
     })
   })
 
-  it('registers a participating app and refuses to delete the auth server', async () => {
+  it('registers a participating app and refuses to update or delete the auth server', async () => {
     const { cookie } = await adminCookie()
     await ensureAuthApp()
     const parent = authEnv.parentDomain()
@@ -336,19 +336,25 @@ describe('admin integration', () => {
       defaultPermission: 'user'
     })
 
-    const authDefault = await app.request(`/admin/apps/${authEnv.appId()}`, {
+    const authUpdate = await app.request(`/admin/apps/${authEnv.appId()}`, {
       method: 'PATCH',
       headers: {
         Cookie: cookie,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        name: '認証サーバー',
-        redirectUris: [],
-        defaultPermission: 'user'
+        name: '表示名の変更',
+        redirectUris: []
       })
     })
-    expect(authDefault.status).toBe(400)
+    expect(authUpdate.status).toBe(400)
+    await expect(authUpdate.json()).resolves.toMatchObject({
+      error: '認証サーバーは変更できません'
+    })
+    await expect(prisma.app.findUnique({ where: { id: authEnv.appId() } })).resolves.toMatchObject({
+      name: '認証サーバー',
+      redirectUris: []
+    })
 
     const removed = await app.request(`/admin/apps/${authEnv.appId()}`, {
       method: 'DELETE',
