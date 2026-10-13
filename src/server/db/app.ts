@@ -5,6 +5,7 @@ export type AppRecord = {
   name: string
   origin: string
   redirectUris: string[]
+  defaultPermission: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -23,17 +24,19 @@ class AppDB {
     name: string
     origin: string
     redirectUris: string[]
+    defaultPermission: string | null
   }): Promise<AppRecord> {
     return prisma.app.create({ data })
   }
 
   async updateDetails(
     id: string,
-    data: { name: string; redirectUris: string[] }
+    data: { name: string; redirectUris: string[]; defaultPermission?: string | null }
   ): Promise<AppRecord> {
+    const { defaultPermission, ...rest } = data
     return prisma.app.update({
       where: { id },
-      data
+      data: defaultPermission === undefined ? rest : { ...rest, defaultPermission }
     })
   }
 

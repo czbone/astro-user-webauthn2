@@ -36,7 +36,7 @@ export default function SetupPasskeyForm() {
       }
 
       const me = await AuthFetch.me()
-      window.location.href = me?.user?.role === 'admin' ? '/dashboard' : '/posts'
+      window.location.href = me?.user?.role === 'admin' ? '/dashboard' : '/devices'
     } catch (error) {
       console.error(error)
       alert('パスキー登録がキャンセルされたか失敗しました')

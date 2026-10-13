@@ -8,7 +8,6 @@ type UserRow = {
   role: string
   createdAt: string
   credentialCount: number
-  postCount: number
 }
 
 export default function AdminUsersSection() {
@@ -104,8 +103,7 @@ export default function AdminUsersSection() {
                 <th className="py-2 pr-4">名前</th>
                 <th className="py-2 pr-4">メール</th>
                 <th className="py-2 pr-4">ロール</th>
-                <th className="py-2 pr-4">パスキー</th>
-                <th className="py-2">投稿</th>
+                <th className="py-2">パスキー</th>
               </tr>
             </thead>
             <tbody>
@@ -114,8 +112,7 @@ export default function AdminUsersSection() {
                   <td className="py-2 pr-4">{user.name}</td>
                   <td className="py-2 pr-4">{user.email}</td>
                   <td className="py-2 pr-4">{user.role}</td>
-                  <td className="py-2 pr-4">{user.credentialCount}</td>
-                  <td className="py-2">{user.postCount}</td>
+                  <td className="py-2">{user.credentialCount}</td>
                 </tr>
               ))}
             </tbody>

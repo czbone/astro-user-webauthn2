@@ -10,7 +10,7 @@ Astro 7（SSR）+ Hono + Prisma 7 + PostgreSQL + Redis + React Islands による
 - seed 管理者だけが初回パスワードログインする。パスキー登録後はパスワードログイン不可
 - セッションは Cookie + Redis（30日スライディング）
 - WebAuthn challenge・レート制限・デバイス招待・復旧用パスワード再設定・招待マジックリンクトークンも Redis
-- 永続ドメインデータ（User / Credential / Post）は PostgreSQL
+- 永続ドメインデータ（User / Credential / App / AppGrant）は PostgreSQL
 - デバイス追加・アカウント復旧・ユーザー招待はメール連携（`MAIL_MODE` で切替）
 
 ## 認証フロー
@@ -42,7 +42,7 @@ Astro 7（SSR）+ Hono + Prisma 7 + PostgreSQL + Redis + React Islands による
 ```text
 管理者招待 → マジックリンクメール → 確認ボタンでログイン → パスキー必須登録 → 利用開始
 seed 管理者: 初期パスワードログイン → パスキー必須登録 → 利用開始
-日常: パスキーログイン（または有効 Session）→ Post / デバイス管理
+日常: パスキーログイン（または有効 Session）→ デバイス管理
 端末追加: 既存端末で再認証 → 招待メール → 新端末でパスキー登録（ログインしない）
 復旧: ログインできないとき → メール → 新パスワード（警告）→ 自動ログイン → パスキー再登録
 ```
@@ -57,15 +57,25 @@ seed 管理者: 初期パスワードログイン → パスキー必須登録 �
 | パスキーログイン | ○ | ○ |
 | アカウント復旧（パスワード再設定・パスキー全削除） | ○ | ○ |
 | 自分のデバイス管理 | ○ | ○ |
-| 公開 Post（`published=true`）の閲覧 | ○ | ○ |
-| 自分の下書き閲覧 / 自分の Post CRUD | ○ | ○ |
-| 他人の下書き閲覧 | × | ○ |
-| 他人の Post の書き込み | × | × |
 | `/dashboard` | × | ○ |
 | ユーザー招待・一覧 | × | ○ |
+| アプリ登録・既定権限・`AppGrant` の編集 | × | ○ |
 
 - ロール値: `admin` / `user`
 - 管理者招待時の role 既定は `user`（`admin` は明示選択のみ）
+- `User.role` は認証サーバー自身の管理操作だけに使う。参加アプリの実効権限には使わない。seed 管理者でも、参加アプリの既定が `user` で例外行が無ければ参加アプリでは `user` になる
+- 認証サーバー自身への入場に `AppGrant` は使わない
+
+## 参加アプリの利用権限
+
+参加アプリの利用可否は、アプリの既定と利用者ごとの例外で決める。利用者全員の `AppGrant` は作らない。
+
+- `App.defaultPermission`: `NULL`、または正の権限（現在は `admin` と `user`）。`NULL` は、行がある人だけ入れる。空文字と `none` は既定に書かない
+- `AppGrant.permission`: 正の権限、または `none`。`none` はその利用者だけを拒否する。`(userId, appId)` は一意
+- 実効権限は `User.role` を見ない。`App` が無い、または `AppGrant` が `none`・空・一覧外なら付与なし。行があるときはその値を使い、既定へは進まない。行が無く既定が正の権限ならその既定。それ以外は付与なし
+- 例外行は既定を置き換える。高い方は取らない
+- セッション JSON に権限も `User.role` も載せない。既定や行の変更は次のリクエストから効き、セッションの作り直しは要らない
+- 認証サーバー自身の `App` 行は対象外。`isAuthServer` は `App.id === APP_ID` で算出し、列にはしない。そのアプリへの引き渡しと `AppGrant` の作成・更新・削除は拒否する
 
 ## データモデル
 
@@ -73,7 +83,8 @@ seed 管理者: 初期パスワードログイン → パスキー必須登録 �
 
 - `User`: id(UUID), email, password(scrypt ハッシュ), name, role
 - `WebAuthnCredential`: credentialId, publicKey, counter, transports, deviceName（登録時は必須。同一ユーザー内で重複不可。既存の未設定レコードは null 可）
-- `Post`: title, content, published, authorId
+- `App`: id, name, origin, redirectUris, defaultPermission（nullable）
+- `AppGrant`: userId, appId, permission。`userId` は必須。一意は `(userId, appId)`
 
 ブラウザへ渡す資格情報一覧は ID のみとする。対象はログインと再認証の `allowCredentials`、登録時の `excludeCredentials`。`transports` は付けない。Chrome は `transports` を絞り込みに使い、候補が 0 件だと「利用可能なパスキーがありません」を出す。
 
@@ -128,9 +139,15 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 ### 管理者 `/api/admin`
 
 - `GET /users` / `POST /users`（招待マジックリンク＋メール。`AppGrant` は自動では付かない）
-- `GET /stats`
-- `GET|POST /apps`、`PATCH|DELETE /apps/:id`（認証サーバー自身の `App` は削除しない。`id` と `origin` は変更しない）
-- `GET|PUT /grants`、`DELETE /grants/:userId/:appId`
+- `GET /stats`（ユーザー数と管理者数）
+- `GET /apps` は各アプリに `defaultPermission`（`null` または正の権限）と `isAuthServer` を含める
+- `POST /apps` は `id`、`name`、`origin`、`redirectUris`、`defaultPermission` を受け取る。`defaultPermission` は必須で `null` または正の権限。認証サーバー自身の ID は登録できない
+- `PATCH /apps/:id` は `defaultPermission` を省略すると変えない。指定時は `null` または正の権限。認証サーバー自身への指定は拒否する。`id` と `origin` は変更しない
+- `DELETE /apps/:id` は認証サーバー自身を削除しない
+- `GET /grants` は参加アプリの例外行（`none` を含む）を返す。認証サーバー自身の行は返さない
+- `PUT /grants` は `userId`、`appId`、`permission`（正の権限または `none`）で upsert する。認証サーバー自身は拒否する
+- `DELETE /grants/:userId/:appId` は例外行を消し、その利用者を既定の判定に戻す。認証サーバー自身は拒否する
+- 空文字、既定への `none`、一覧に無い値は 400
 
 ### デバイス `/api/devices`
 
@@ -139,12 +156,9 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 - `POST /invite`（再認証必須＋メール）
 - `POST /register/options|verify`（招待トークン、ログイン不要）。verify はデバイス名必須・同一ユーザーで重複不可
 
-### 投稿 `/api/posts`
+### 引き渡し `GET /auth/handoff`
 
-- セッション必須・パスキー設定済み必須・認証サーバーアプリの `AppGrant` 必須
-- GET: 公開 Post、または自分の下書き（`AppGrant.permission = admin` は全件）
-- 書き込み: 常に本人のみ
-- `User.role` はダッシュボードとユーザー・アプリ管理に使い、投稿の全件閲覧には使わない
+セッションを作る条件は、認証サーバーのセッション、Credential が 1 件以上、対象アプリの実効権限が正の権限、`redirect_uri` が `App.redirectUris` と完全一致。`appId` が認証サーバー自身、または戻り先のオリジンが認証サーバーと同じときは拒否する。実効権限が付与なしのときはセッションを作らず 403「引き渡し先のアプリを利用できません」。このとき認証サーバーのセッション TTL も延ばさない。
 
 ## 環境変数
 

@@ -9,8 +9,6 @@ class AdminFetch {
       data: await readJson<{
         userCount: number
         adminCount: number
-        postCount: number
-        publishedPostCount: number
         error?: string
       }>(res)
     }
@@ -37,7 +35,13 @@ class AdminFetch {
     return { response: res, data: await readJson<unknown>(res) }
   }
 
-  async createApp(input: { id: string; name: string; origin: string; redirectUris: string[] }) {
+  async createApp(input: {
+    id: string
+    name: string
+    origin: string
+    redirectUris: string[]
+    defaultPermission: 'admin' | 'user' | null
+  }) {
     const res = await apiFetch('/admin/apps', {
       method: 'POST',
       body: JSON.stringify(input)
@@ -46,7 +50,10 @@ class AdminFetch {
     return { response: res, data: await readJson<{ error?: string }>(res) }
   }
 
-  async updateApp(id: string, input: { name: string; redirectUris: string[] }) {
+  async updateApp(
+    id: string,
+    input: { name: string; redirectUris: string[]; defaultPermission?: 'admin' | 'user' | null }
+  ) {
     const res = await apiFetch(`/admin/apps/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(input)
@@ -67,7 +74,11 @@ class AdminFetch {
     return { response: res, data: await readJson<unknown>(res) }
   }
 
-  async saveGrant(input: { userId: string; appId: string; permission: 'admin' | 'user' }) {
+  async saveGrant(input: {
+    userId: string
+    appId: string
+    permission: 'admin' | 'user' | 'none'
+  }) {
     const res = await apiFetch('/admin/grants', {
       method: 'PUT',
       body: JSON.stringify(input)

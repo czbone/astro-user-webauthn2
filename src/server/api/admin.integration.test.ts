@@ -3,14 +3,23 @@ import app from '@/server/api/app'
 import { authEnv } from '@/server/auth/env'
 import { sendUserInviteMail } from '@/server/auth/mail'
 import { createSession } from '@/server/auth/session'
-import { PostDB } from '@/server/db'
-import {
-  createTestUser,
-  grantAppAccess,
-  insertPasskeyFixture,
-  resetDatabase,
-  sessionCookieHeader
-} from '@/test/db'
+import { prisma } from '@/lib/prisma'
+import { createTestUser, insertPasskeyFixture, resetDatabase, sessionCookieHeader } from '@/test/db'
+
+async function ensureAuthApp() {
+  const origin = new URL(authEnv.origin()).origin
+  await prisma.app.upsert({
+    where: { id: authEnv.appId() },
+    create: {
+      id: authEnv.appId(),
+      name: '認証サーバー',
+      origin,
+      redirectUris: [],
+      defaultPermission: null
+    },
+    update: {}
+  })
+}
 
 async function adminCookie() {
   const { user } = await createTestUser({
@@ -189,22 +198,9 @@ describe('admin integration', () => {
     expect(arg?.token.length).toBeGreaterThan(10)
   })
 
-  it('returns correct counts for users, admins, posts, and published posts', async () => {
-    const { cookie, user: admin } = await adminCookie()
-    const { user: member } = await createTestUser({ email: 'stats-user@example.com' })
-
-    await PostDB.create({
-      title: 'Published',
-      content: 'ok',
-      published: true,
-      authorId: member.id
-    })
-    await PostDB.create({
-      title: 'Draft',
-      content: 'draft',
-      published: false,
-      authorId: admin.id
-    })
+  it('returns correct counts for users and admins', async () => {
+    const { cookie } = await adminCookie()
+    await createTestUser({ email: 'stats-user@example.com' })
 
     const res = await app.request('/admin/stats', {
       headers: { Cookie: cookie }
@@ -213,9 +209,7 @@ describe('admin integration', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({
       userCount: 2,
-      adminCount: 1,
-      postCount: 2,
-      publishedPostCount: 1
+      adminCount: 1
     })
   })
 
@@ -280,10 +274,25 @@ describe('admin integration', () => {
   })
 
   it('registers a participating app and refuses to delete the auth server', async () => {
-    const { user, cookie } = await adminCookie()
-    await grantAppAccess(user.id)
+    const { cookie } = await adminCookie()
+    await ensureAuthApp()
     const parent = authEnv.parentDomain()
     const origin = parent === 'localhost' ? 'http://app.localhost:4000' : `https://app.${parent}`
+
+    const missingDefault = await app.request('/admin/apps', {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: 'board',
+        name: '参加アプリ',
+        origin,
+        redirectUris: [`${origin}/callback`]
+      })
+    })
+    expect(missingDefault.status).toBe(400)
 
     const created = await app.request('/admin/apps', {
       method: 'POST',
@@ -292,13 +301,54 @@ describe('admin integration', () => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        id: 'posts',
-        name: '投稿',
+        id: 'board',
+        name: '参加アプリ',
         origin,
-        redirectUris: [`${origin}/callback`]
+        redirectUris: [`${origin}/callback`],
+        defaultPermission: 'user'
       })
     })
     expect(created.status).toBe(201)
+    await expect(created.json()).resolves.toMatchObject({
+      id: 'board',
+      defaultPermission: 'user',
+      isAuthServer: false
+    })
+
+    const listed = await app.request('/admin/apps', { headers: { Cookie: cookie } })
+    const apps = (await listed.json()) as Array<{ id: string; isAuthServer: boolean }>
+    expect(apps.find((item) => item.id === authEnv.appId())?.isAuthServer).toBe(true)
+
+    const kept = await app.request(`/admin/apps/board`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: '参加アプリ改',
+        redirectUris: [`${origin}/callback`]
+      })
+    })
+    expect(kept.status).toBe(200)
+    await expect(kept.json()).resolves.toMatchObject({
+      name: '参加アプリ改',
+      defaultPermission: 'user'
+    })
+
+    const authDefault = await app.request(`/admin/apps/${authEnv.appId()}`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: '認証サーバー',
+        redirectUris: [],
+        defaultPermission: 'user'
+      })
+    })
+    expect(authDefault.status).toBe(400)
 
     const removed = await app.request(`/admin/apps/${authEnv.appId()}`, {
       method: 'DELETE',
@@ -308,5 +358,68 @@ describe('admin integration', () => {
     await expect(removed.json()).resolves.toMatchObject({
       error: '認証サーバーは削除できません'
     })
+  })
+
+  it('upserts a none grant and refuses grants for the auth server', async () => {
+    const { user, cookie } = await adminCookie()
+    await ensureAuthApp()
+    const parent = authEnv.parentDomain()
+    const origin = parent === 'localhost' ? 'http://app.localhost:4000' : `https://app.${parent}`
+    await prisma.app.create({
+      data: {
+        id: 'board',
+        name: '参加アプリ',
+        origin,
+        redirectUris: [`${origin}/callback`],
+        defaultPermission: null
+      }
+    })
+
+    const rejected = await app.request('/admin/grants', {
+      method: 'PUT',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        userId: user.id,
+        appId: authEnv.appId(),
+        permission: 'user'
+      })
+    })
+    expect(rejected.status).toBe(400)
+
+    const saved = await app.request('/admin/grants', {
+      method: 'PUT',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        userId: user.id,
+        appId: 'board',
+        permission: 'none'
+      })
+    })
+    expect(saved.status).toBe(200)
+    await expect(saved.json()).resolves.toMatchObject({
+      userId: user.id,
+      appId: 'board',
+      permission: 'none'
+    })
+
+    await prisma.appGrant.create({
+      data: { userId: user.id, appId: authEnv.appId(), permission: 'admin' }
+    })
+    const listed = await app.request('/admin/grants', { headers: { Cookie: cookie } })
+    const grants = (await listed.json()) as Array<{ appId: string; permission: string }>
+    expect(grants).toEqual([expect.objectContaining({ appId: 'board', permission: 'none' })])
+
+    const deleted = await app.request(`/admin/grants/${user.id}/board`, {
+      method: 'DELETE',
+      headers: { Cookie: cookie }
+    })
+    expect(deleted.status).toBe(200)
+    expect(await prisma.appGrant.count({ where: { appId: 'board' } })).toBe(0)
   })
 })

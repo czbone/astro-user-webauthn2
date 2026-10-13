@@ -1,3 +1,4 @@
+import { resolveEffectivePermission } from '@/server/auth/permissions'
 import { AppDB, AppGrantDB, HandoffDB, SessionDB } from '@/server/db'
 import { isAppId, isDirectChildHost, isHandoffState, safeHandoffNext } from '@/server/auth/app-host'
 import { authEnv } from '@/server/auth/env'
@@ -88,7 +89,7 @@ export async function handleHandoff(c: Context): Promise<Response> {
   }
 
   const grant = await AppGrantDB.findByUserAndApp(session.user.id, app.id)
-  if (!grant) {
+  if (!resolveEffectivePermission(app, grant)) {
     return handoffError(403, '引き渡し先のアプリを利用できません')
   }
 

@@ -5,7 +5,6 @@ import {
   setSessionCookieOnContext,
   slideSession
 } from '@/server/auth/session'
-import { AppGrantDB } from '@/server/db'
 import { authEnv } from '@/server/auth/env'
 import type { AppVariables } from '@/server/middleware/types'
 
@@ -68,19 +67,6 @@ export const requirePasskey = createMiddleware<{ Variables: AppVariables }>(asyn
   if (user.mustSetupPasskey) {
     return c.json({ error: '先にパスキーを登録してください' }, 403)
   }
-  return next()
-})
-
-export const requireAppGrant = createMiddleware<{ Variables: AppVariables }>(async (c, next) => {
-  const user = c.get('user')
-  if (!user) {
-    return c.json({ error: 'ログインが必要です' }, 401)
-  }
-  const grant = await AppGrantDB.findByUserAndApp(user.id, authEnv.appId())
-  if (!grant || (grant.permission !== 'admin' && grant.permission !== 'user')) {
-    return c.json({ error: 'このアプリを利用する権限がありません' }, 403)
-  }
-  c.set('appPermission', grant.permission)
   return next()
 })
 

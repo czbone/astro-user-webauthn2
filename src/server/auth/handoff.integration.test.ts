@@ -124,4 +124,60 @@ describe('handoff', () => {
     expect(res.headers.get('location')).toBe('/setup-passkey')
     expect(authEnv.appId()).toBeTruthy()
   })
+
+  it('hands off when the app default is a positive permission and there is no grant', async () => {
+    const { cookie } = await authCookie()
+    const target = participatingApp()
+    await prisma.app.create({
+      data: {
+        id: 'posts',
+        name: '参加アプリ',
+        origin: target.origin,
+        redirectUris: [target.redirectUri],
+        defaultPermission: 'user'
+      }
+    })
+
+    const res = await handoffApp.request(
+      `/auth/handoff?app=posts&redirect_uri=${encodeURIComponent(target.redirectUri)}&state=state-1`,
+      { headers: { Cookie: cookie } }
+    )
+
+    expect(res.status).toBe(303)
+    expect(res.headers.get('location')?.startsWith(`${target.redirectUri}?code=`)).toBe(true)
+  })
+
+  it('does not hand off for a none grant or a null default without a grant', async () => {
+    const { user, cookie } = await authCookie()
+    const target = participatingApp()
+    await prisma.app.create({
+      data: {
+        id: 'posts',
+        name: '参加アプリ',
+        origin: target.origin,
+        redirectUris: [target.redirectUri],
+        defaultPermission: 'user'
+      }
+    })
+    await prisma.appGrant.create({
+      data: { userId: user.id, appId: 'posts', permission: 'none' }
+    })
+
+    const denied = await handoffApp.request(
+      `/auth/handoff?app=posts&redirect_uri=${encodeURIComponent(target.redirectUri)}&state=state-1`,
+      { headers: { Cookie: cookie } }
+    )
+    expect(denied.status).toBe(403)
+    expect(await denied.text()).toContain('引き渡し先のアプリを利用できません')
+    expect(await redis.keys(RedisKeys.handoff('posts', '*'))).toEqual([])
+
+    await prisma.appGrant.deleteMany()
+    await prisma.app.update({ where: { id: 'posts' }, data: { defaultPermission: null } })
+    const missing = await handoffApp.request(
+      `/auth/handoff?app=posts&redirect_uri=${encodeURIComponent(target.redirectUri)}&state=state-2`,
+      { headers: { Cookie: cookie } }
+    )
+    expect(missing.status).toBe(403)
+    expect(await redis.keys(RedisKeys.handoff('posts', '*'))).toEqual([])
+  })
 })

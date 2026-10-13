@@ -9,7 +9,7 @@ if (redirectTo === '/login') {
   return Astro.redirect('/login')
 }
 if (session && !session.user.mustSetupPasskey) {
-  return Astro.redirect(session.user.role === 'admin' ? '/dashboard' : '/posts')
+  return Astro.redirect(session.user.role === 'admin' ? '/dashboard' : '/devices')
 }
 ---
 

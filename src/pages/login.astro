@@ -13,7 +13,7 @@ if (session) {
   if (next) {
     return Astro.redirect(next)
   }
-  return Astro.redirect(session.user.role === 'admin' ? '/dashboard' : '/posts')
+  return Astro.redirect(session.user.role === 'admin' ? '/dashboard' : '/devices')
 }
 ---
 

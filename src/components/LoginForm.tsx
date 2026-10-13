@@ -78,7 +78,7 @@ export default function LoginForm({ next }: { next?: string }) {
         return
       }
       const role = result.data?.user?.role
-      window.location.href = role === 'admin' ? '/dashboard' : '/posts'
+      window.location.href = role === 'admin' ? '/dashboard' : '/devices'
     } catch (error) {
       console.error(error)
       alert('パスキー認証がキャンセルされたか失敗しました')

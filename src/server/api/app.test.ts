@@ -51,11 +51,6 @@ vi.mock('@/server/db', () => ({
     countAdmins: vi.fn(),
     list: vi.fn()
   },
-  PostDB: {
-    listForViewer: vi.fn(),
-    count: vi.fn(),
-    countPublished: vi.fn()
-  },
   SessionDB: {
     findValidByTokenHash: vi.fn(),
     create: vi.fn(),
@@ -108,8 +103,8 @@ describe('API app smoke', () => {
     })
   })
 
-  it('GET /posts requires authentication', async () => {
-    const res = await app.request('/posts')
+  it('GET /devices requires authentication', async () => {
+    const res = await app.request('/devices')
     expect(res.status).toBe(401)
   })
 

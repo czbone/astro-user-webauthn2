@@ -6,7 +6,7 @@
 
 | ストア | 対象 |
 |--------|------|
-| PostgreSQL | `User`, `WebAuthnCredential`, `Post`, `App`, `AppGrant` |
+| PostgreSQL | `User`, `WebAuthnCredential`, `App`, `AppGrant` |
 | Redis | Session、WebAuthn challenge / reauth-ok、Rate limit、DeviceInvite、PasswordReset、MagicLink |
 
 クライアントは `ioredis` を想定し、接続はプロセス内シングルトンとする（開発時の HMR では `globalThis` 再利用を推奨）。
@@ -56,14 +56,14 @@
 }
 ```
 
-ユーザースナップショットは載せない。認証解決時は `userId` で PostgreSQL から User を取得する。
+ユーザースナップショットは載せない。権限も `User.role` も載せない。認証解決時は `userId` で PostgreSQL から User を取得する。参加アプリの利用可否は、セッションではなくリクエスト時の実効権限で決める。
 
 ### 操作
 
 | 操作 | Redis |
 |------|-------|
 | 作成 | `SET sess:{appId}:{tokenHash} JSON EX ttl` + `SADD sess:user:{userId} {appId}/{tokenHash}`（索引 SET にも適切な TTL を付与または更新） |
-| 検証成功 | パスキーがあり、必要な `AppGrant` があるときだけ `EXPIRE sess:{appId}:{tokenHash} ttl` + Cookie Max-Age 再設定 |
+| 検証成功 | 認証サーバーではパスキーがあるときだけ `EXPIRE sess:{appId}:{tokenHash} ttl` + Cookie Max-Age 再設定。入場に `AppGrant` は使わない。引き渡しは実効権限が正の権限のときだけ参加アプリのセッションを作り、付与なしのときは認証サーバーの TTL も延ばさない |
 | ログアウト | `DEL sess:{appId}:{tokenHash}` + `SREM sess:user:{userId} {appId}/{tokenHash}` |
 | 全失効 | `SMEMBERS sess:user:{userId}` → 各 `DEL sess:{appId}:{hash}` → `DEL sess:user:{userId}` |
 
@@ -147,7 +147,7 @@ PostgreSQL では、参加アプリ用ロールに次の `SELECT` だけを与�
 
 - `User` の `id`、`email`、`name`
 - `WebAuthnCredential` の `id`、`userId`（件数用。`SELECT COUNT(id)`）
-- `App`、`AppGrant` の全列
+- `App`（`defaultPermission` を含む）、`AppGrant` の全列。`User.role` は与えない
 
 このログインロールは、管理者が認証サーバーと同じデータベースへ一度だけ作成します。ひな型の `CREATE ROLE` と `GRANT` はコメントアウトされているので、データベース名とパスワードを置き換えてから実行します。認証サーバーの起動処理、Prisma のマイグレーション、参加アプリは、このコマンドを実行しません。
 
@@ -159,11 +159,11 @@ DATABASE_URL="postgresql://app_participant:replace-me@localhost:5432/database_na
 
 `replace-me` は `CREATE ROLE` で決めたパスワードです。`database_name` は認証サーバーの `DATABASE_URL` と同じデータベース名です。認証サーバーの `DATABASE_URL` は、読み書きできる既存のユーザーのままにします。
 
-共有テーブル（`User`、`WebAuthnCredential`、`App`、`AppGrant`、認証サーバーの `Post`）のマイグレーションは認証サーバーだけが行います。参加アプリ用ロールは `SELECT` だけなので、この接続ではテーブルを作成しません。アプリ固有のテーブルを書き始めるときは、そのテーブルへの書き込みをそのアプリのロールだけに与えます。
+共有テーブル（`User`、`WebAuthnCredential`、`App`、`AppGrant`）のマイグレーションは認証サーバーだけが行います。参加アプリ用ロールは `SELECT` だけなので、この接続ではテーブルを作成しません。アプリ固有のテーブルを書き始めるときは、そのテーブルへの書き込みをそのアプリのロールだけに与えます。
 
 Redis の ACL ユーザーは、全参加アプリで `app_participant` の1人です。アプリごとに作りません。認証サーバーの `REDIS_URL` は、これまでどおり読み書きできるユーザー（Coolify の Redis リソースが渡すユーザーを含む）のままです。
 
-`PARTICIPANT_REDIS_PASSWORD` があるとき、プロセス起動後の最初の HTTP リクエストの直前に、認証サーバーの `REDIS_URL` で `app_participant` を上書きします。`entrypoint.sh` では作りません。同じプロセスでは一度だけです。再起動すると、次のリクエストで再び上書きします。未設定なら作りません。パスワードは PostgreSQL の `app_participant` とは別です。Redis 7 のセレクタで、パターンごとにコマンドを分けます。`KEYS` と `SCAN` は与えません。セッションの `SET` と索引への `SADD` も与えません。参加アプリのサーバが侵害されても、パスキーを通さず、そのアプリの `AppGrant` を持つユーザーのセッションを作らせないためです。
+`PARTICIPANT_REDIS_PASSWORD` があるとき、プロセス起動後の最初の HTTP リクエストの直前に、認証サーバーの `REDIS_URL` で `app_participant` を上書きします。`entrypoint.sh` では作りません。同じプロセスでは一度だけです。再起動すると、次のリクエストで再び上書きします。未設定なら作りません。パスワードは PostgreSQL の `app_participant` とは別です。Redis 7 のセレクタで、パターンごとにコマンドを分けます。`KEYS` と `SCAN` は与えません。セッションの `SET` と索引への `SADD` も与えません。参加アプリのサーバが侵害されても、パスキーと引き渡しを通さず、実効権限がある利用者のセッションを作らせないためです。
 
 - `sess:*` の GET、EXPIRE、DEL
 - `handoff:*` の GET、GETDEL、DEL

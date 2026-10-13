@@ -13,7 +13,7 @@ if (session.user.mustSetupPasskey) {
 if (session.user.role === 'admin') {
   return Astro.redirect('/dashboard')
 }
-return Astro.redirect('/posts')
+return Astro.redirect('/devices')
 ---
 
 <Layout title="Home">

@@ -553,7 +553,7 @@ describe('auth integration', () => {
     const { user } = await createTestUser()
     const { token } = await createSession(user.id)
 
-    const res = await app.request('/posts', {
+    const res = await app.request('/devices', {
       headers: { Cookie: sessionCookieHeader(token) }
     })
 

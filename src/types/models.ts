@@ -18,21 +18,6 @@ export type UserPublic = {
   credentialCount?: number
 }
 
-export type Post = {
-  id: string
-  title: string
-  content: string | null
-  published: boolean
-  authorId: string
-  createdAt: string
-  updatedAt: string
-  author: {
-    id: string
-    email: string
-    name: string
-  }
-}
-
 export type DeviceCredential = {
   id: string
   deviceName: string | null

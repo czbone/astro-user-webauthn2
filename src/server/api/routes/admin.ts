@@ -4,8 +4,9 @@ import { authEnv } from '@/server/auth/env'
 import { issueInviteMagicLink } from '@/server/auth/magic-link'
 import { hashPassword } from '@/server/auth/password'
 import { generateToken } from '@/server/auth/tokens'
-import { AppDB, AppGrantDB, PostDB, UserDB } from '@/server/db'
-import type { AppPermission } from '@/server/db/app-grant'
+import { readDefaultPermission, readGrantPermission } from '@/server/auth/permissions'
+import { AppDB, AppGrantDB, UserDB } from '@/server/db'
+import type { AppRecord } from '@/server/db/app'
 import { loadSession, requireAdmin, slideSessionAfterAuth } from '@/server/middleware/auth'
 import type { AppVariables } from '@/server/middleware/types'
 
@@ -15,19 +16,12 @@ admin.use('*', loadSession, requireAdmin, slideSessionAfterAuth)
 
 admin.get('/stats', async (c) => {
   try {
-    const [userCount, adminCount, postCount, publishedPostCount] = await Promise.all([
-      UserDB.count(),
-      UserDB.countAdmins(),
-      PostDB.count(),
-      PostDB.countPublished()
-    ])
+    const [userCount, adminCount] = await Promise.all([UserDB.count(), UserDB.countAdmins()])
 
     return c.json(
       {
         userCount,
-        adminCount,
-        postCount,
-        publishedPostCount
+        adminCount
       },
       200
     )
@@ -110,15 +104,23 @@ function readRedirectUris(value: unknown): string[] | null {
   return value
 }
 
-function readPermission(value: unknown): AppPermission | null {
-  if (value === 'admin' || value === 'user') return value
-  return null
+function serializeApp(app: AppRecord) {
+  return {
+    id: app.id,
+    name: app.name,
+    origin: app.origin,
+    redirectUris: app.redirectUris,
+    defaultPermission: app.defaultPermission,
+    isAuthServer: app.id === authEnv.appId(),
+    createdAt: app.createdAt,
+    updatedAt: app.updatedAt
+  }
 }
 
 admin.get('/apps', async (c) => {
   try {
     const apps = await AppDB.list()
-    return c.json(apps, 200)
+    return c.json(apps.map(serializeApp), 200)
   } catch (error) {
     console.error('アプリ一覧取得エラー:', error)
     return c.json({ error: 'アプリ一覧の取得に失敗しました' }, 500)
@@ -141,9 +143,19 @@ admin.post('/apps', async (c) => {
     if (!validated.ok) {
       return c.json({ error: validated.error }, 400)
     }
+    if (!Object.prototype.hasOwnProperty.call(body, 'defaultPermission')) {
+      return c.json({ error: '既定の権限は必須です' }, 400)
+    }
+    const defaultPermission = readDefaultPermission(body.defaultPermission)
+    if (!defaultPermission.ok) {
+      return c.json({ error: '既定の権限が正しくありません' }, 400)
+    }
 
-    const app = await AppDB.create(validated.value)
-    return c.json(app, 201)
+    const app = await AppDB.create({
+      ...validated.value,
+      defaultPermission: defaultPermission.value
+    })
+    return c.json(serializeApp(app), 201)
   } catch (error) {
     if (isPrismaError(error, 'P2002')) {
       return c.json({ error: '同じ ID またはオリジンのアプリが既にあります' }, 409)
@@ -177,8 +189,24 @@ admin.patch('/apps/:id', async (c) => {
       return c.json({ error: validated.error }, 400)
     }
 
-    const app = await AppDB.updateDetails(id, validated.value)
-    return c.json(app, 200)
+    const details: {
+      name: string
+      redirectUris: string[]
+      defaultPermission?: string | null
+    } = validated.value
+    if (Object.prototype.hasOwnProperty.call(body, 'defaultPermission')) {
+      if (id === authEnv.appId()) {
+        return c.json({ error: '認証サーバーの既定権限は設定できません' }, 400)
+      }
+      const defaultPermission = readDefaultPermission(body.defaultPermission)
+      if (!defaultPermission.ok) {
+        return c.json({ error: '既定の権限が正しくありません' }, 400)
+      }
+      details.defaultPermission = defaultPermission.value
+    }
+
+    const app = await AppDB.updateDetails(id, details)
+    return c.json(serializeApp(app), 200)
   } catch (error) {
     console.error('アプリ更新エラー:', error)
     return c.json({ error: 'アプリの更新に失敗しました' }, 500)
@@ -206,7 +234,10 @@ admin.delete('/apps/:id', async (c) => {
 admin.get('/grants', async (c) => {
   try {
     const grants = await AppGrantDB.list()
-    return c.json(grants, 200)
+    return c.json(
+      grants.filter((grant) => grant.appId !== authEnv.appId()),
+      200
+    )
   } catch (error) {
     console.error('権限一覧取得エラー:', error)
     return c.json({ error: '権限一覧の取得に失敗しました' }, 500)
@@ -218,9 +249,12 @@ admin.put('/grants', async (c) => {
     const body = await c.req.json()
     const userId = String(body.userId || '')
     const appId = String(body.appId || '')
-    const permission = readPermission(body.permission)
+    const permission = readGrantPermission(body.permission)
     if (!userId || !appId || !permission) {
       return c.json({ error: 'ユーザー、アプリ、権限が必要です' }, 400)
+    }
+    if (appId === authEnv.appId()) {
+      return c.json({ error: '認証サーバーへの権限は設定できません' }, 400)
     }
 
     const user = await UserDB.findById(userId)
@@ -239,7 +273,11 @@ admin.put('/grants', async (c) => {
 
 admin.delete('/grants/:userId/:appId', async (c) => {
   try {
-    const deleted = await AppGrantDB.delete(c.req.param('userId'), c.req.param('appId'))
+    const appId = c.req.param('appId')
+    if (appId === authEnv.appId()) {
+      return c.json({ error: '認証サーバーへの権限は設定できません' }, 400)
+    }
+    const deleted = await AppGrantDB.delete(c.req.param('userId'), appId)
     if (!deleted) {
       return c.json({ error: '権限が見つかりません' }, 404)
     }

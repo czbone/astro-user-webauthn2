@@ -41,6 +41,6 @@ describe('app host rules', () => {
     expect(
       safeHandoffNext('https://app.example.com/auth/handoff?app=posts&redirect_uri=x&state=abc')
     ).toBeNull()
-    expect(safeHandoffNext('/posts')).toBeNull()
+    expect(safeHandoffNext('/devices')).toBeNull()
   })
 })

@@ -1,8 +1,8 @@
 {
-  "name": "astro-user-webauthn",
+  "name": "astro-user-webauthn2",
   "description": "Admin-invite passkey (WebAuthn) authentication app built with Astro SSR, Hono, Prisma, and PostgreSQL.",
   "type": "module",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build && pnpm run db:seed:build && pnpm run env:check:build",
@@ -34,7 +34,7 @@
     "flowbite": "^4.0.2",
     "hono": "^4.13.13",
     "ioredis": "^6.0.0",
-    "nodemailer": "^10.0.16",
+    "nodemailer": "^10.1.0",
     "pg": "^8.23.1",
     "prisma": "^7.10.0",
     "react": "^19.3.0",

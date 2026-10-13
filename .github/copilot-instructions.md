@@ -36,8 +36,8 @@
 - パスキーでログインできないときの復旧はパスワード再設定（自動化しない）。招待ユーザーも同じ。
 - パスキー未設定セッションは setup / logout / me 以外を拒否してください。
 - 2台目以降のパスキーは再認証＋デバイス招待メール経由のみです。
-- ロールは `admin` / `user`。ダッシュボードとユーザー管理は admin のみ。
-- 公開 Post はログイン済み全員が閲覧可。書き込みは本人のみ。admin は他人の下書きも閲覧可。
+- ロールは `admin` / `user`。ダッシュボード、ユーザー管理、アプリと `AppGrant` の編集は admin のみ。参加アプリの実効権限には使わない。
+- 参加アプリの利用可否は `App.defaultPermission` と `AppGrant`。利用者全員の行は作らない。認証サーバー自身の入場に `AppGrant` は使わない。
 
 ## Astro と React の指針
 - ページの認可は `getPageSession` / `redirectForAuth`（`src/lib/auth-page.ts`）を使ってください。
@@ -46,7 +46,7 @@
 - mutation 成功後は `window.location.reload()` せず、再取得で state を更新してください（認証完了時の遷移は除く）。
 
 ## API ルートの指針
-- Hono ルートは `src/server/api/routes` に置き、`src/server/api/app.ts` で `/auth` `/admin` `/devices` `/posts` として集約してください。
+- Hono ルートは `src/server/api/routes` に置き、`src/server/api/app.ts` で `/auth` `/admin` `/devices` として集約してください。
 - Prisma 操作は `src/server/db` 経由にしてください。
 - `src/pages/api` の Astro API Routes は使わないでください。
 
@@ -56,7 +56,7 @@
 - ID は UUID（文字列）です。
 
 ## データモデルの前提
-- PostgreSQL: `User`（email unique, password(scrypt hash), name, role）/ `WebAuthnCredential` / `Post`
+- PostgreSQL: `User`（email unique, password(scrypt hash), name, role）/ `WebAuthnCredential` / `App`（`defaultPermission` は nullable）/ `AppGrant`
 - Redis: Session / DeviceInvite / PasswordReset / WebAuthn challenge / rate limit（詳細は `docs/redis.md`）
 - Session / Invite / Reset トークンはクライアントに生値、Redis キーは SHA-256 ハッシュ
 

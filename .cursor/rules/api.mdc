@@ -6,18 +6,18 @@ alwaysApply: false
 
 # API
 
-- Hono ルートは `src/server/api/routes` に置き、`src/server/api/app.ts` で `/auth` `/admin` `/devices` `/posts` として集約する。
+- Hono ルートは `src/server/api/routes` に置き、`src/server/api/app.ts` で `/auth` `/admin` `/devices` として集約する。
 - `src/pages/api` の Astro API Routes は使わない。
 - Prisma 操作は `src/server/db` 経由。ルートから直接 Prisma Client を呼ばない。
-- セッションは `loadSession` で Hono `Variables`（`user` / `sessionId`）に載せる。認可は `requireAuth` / `requirePasskey` / `requireAdmin`。投稿は加えて `requireAppGrant`。
+- セッションは `loadSession` で Hono `Variables`（`user` / `sessionId`）に載せる。認可は `requireAuth` / `requirePasskey` / `requireAdmin`。認証サーバー自身の入場に `AppGrant` は使わない。
 - 更新リクエストは `requireAuthOrigin` で、`Origin` が認証サーバーのオリジンと一致するときだけ受ける。
 - ブラウザ側は `src/api-client` 経由。`fetch` をコンポーネントに直書きしない。
 
 ```ts
 // ❌ BAD
-const posts = await prisma.post.findMany()
+const users = await prisma.user.findMany()
 
 // ✅ GOOD
-const posts = await PostDB.listPublished()
+const users = await UserDB.list()
 const user = c.get('user')
 ```

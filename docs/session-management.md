@@ -22,7 +22,7 @@ WebAuthn の Credential と Session は別物として管理します。
 
 | ストア | 対象 |
 |--------|------|
-| PostgreSQL | `User`, `WebAuthnCredential`, `Post` |
+| PostgreSQL | `User`, `WebAuthnCredential`, `App`, `AppGrant` |
 | Redis | Session、WebAuthn challenge / reauth-ok、Rate limit、DeviceInvite、PasswordReset、MagicLink |
 
 ## 3. ログイン時
@@ -61,7 +61,7 @@ Cookie 発行
 
 ユーザー索引: `sess:user:{userId}` = Redis SET（要素は `{appId}/{tokenHash}`）。パスワード再設定時の全セッション失効に使う。認証サーバー自身の `appId` は環境変数 `APP_ID` です。
 
-セッション値にユーザースナップショットは載せない。ロールやパスキー有無はリクエストごとに PostgreSQL から解決する。
+セッション値にユーザースナップショットは載せない。権限も `User.role` も載せない。ロールとパスキー有無はリクエストごとに PostgreSQL から解決する。参加アプリの既定や `AppGrant` の変更は、次のリクエストから効く。セッションの作り直しは要らない。
 
 ## 4. セッション Cookie
 
@@ -109,12 +109,16 @@ GET sess:{appId}:{hash}
        ↓
      userId で PostgreSQL から User 取得（hasPasskey 等を算出）
        ↓
-     Credential が 0 件、または必要な AppGrant が無いときは TTL も Cookie も延ばさない
+     Credential が 0 件のときは TTL も Cookie も延ばさない
+       ↓
+     認証サーバー自身の入場に AppGrant は使わない
        ↓
      許可されたアクセスだけ EXPIRE（TTL 延長）+ Cookie Max-Age 再設定
        ↓
      認証済み
 ```
+
+参加アプリへの引き渡しは、対象アプリの実効権限が正の権限のときだけそのアプリのセッションを作る。付与なしのときは作らず、認証サーバーのセッション TTL も延ばさない。
 
 ## 7. ログアウト
 

@@ -5,5 +5,4 @@ export type AppVariables = {
   sessionId: string
   sessionToken: string
   tokenHash: string
-  appPermission: 'admin' | 'user'
 }

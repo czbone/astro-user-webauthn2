@@ -35,7 +35,7 @@ class UserDB {
     const users = await prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
-        _count: { select: { credentials: true, posts: true } }
+        _count: { select: { credentials: true } }
       }
     })
 
@@ -45,8 +45,7 @@ class UserDB {
       name: user.name,
       role: user.role,
       createdAt: user.createdAt,
-      credentialCount: user._count.credentials,
-      postCount: user._count.posts
+      credentialCount: user._count.credentials
     }))
   }
 

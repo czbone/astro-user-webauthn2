@@ -10,13 +10,13 @@ alwaysApply: true
 - パスキーでログインできないときの復旧はパスワード再設定（自動化しない）。招待ユーザーも同じ。
 - パスキー未設定セッションは setup / logout / me 以外を拒否する。
 - 2台目以降のパスキーは再認証＋デバイス招待メール経由のみ。
-- `User.role` は `admin` / `user`。ダッシュボード、ユーザー管理、アプリと `AppGrant` の編集は admin のみ。
-- 投稿は認証サーバーアプリの `AppGrant` が必要。公開 Post は権限があるログイン済みユーザーが閲覧可。書き込みは本人のみ。他人の下書きは `AppGrant.permission = admin` だけが閲覧可。
+- `User.role` は `admin` / `user`。ダッシュボード、ユーザー管理、アプリと `AppGrant` の編集は admin のみ。参加アプリの実効権限には使わない。
+- 参加アプリの利用可否は `App.defaultPermission` と `AppGrant` の実効権限。利用者全員の行は作らない。`none` は例外だけの拒否。認証サーバー自身の入場に `AppGrant` は使わない。
 - アプリのホストは `PARENT_DOMAIN` の直下サブドメインだけ。Cookie に `Domain` は付けない。WebAuthn の RP ID は認証サーバーのホスト名。
 
 ## データ前提
 
-- PostgreSQL: `User`（email unique, password は scrypt hash, name, role）/ `WebAuthnCredential` / `Post` / `App` / `AppGrant`
+- PostgreSQL: `User`（email unique, password は scrypt hash, name, role）/ `WebAuthnCredential` / `App`（`defaultPermission` は nullable）/ `AppGrant`
 - Redis: Session / Handoff / DeviceInvite / PasswordReset / MagicLink / WebAuthn challenge / rate limit
 - Session / Invite / Reset / Magic のトークンはクライアントに生値、Redis キーは SHA-256 ハッシュ
-- セッションは Cookie 名 `__Host-session` + Redis キー `sess:{appId}:{tokenHash}`。ユーザースナップショットは載せない。ロールとパスキー有無は都度 PostgreSQL から解決する。
+- セッションは Cookie 名 `__Host-session` + Redis キー `sess:{appId}:{tokenHash}`。ユーザースナップショットも権限も載せない。ロールとパスキー有無は都度 PostgreSQL から解決する。

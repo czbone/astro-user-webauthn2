@@ -26,7 +26,7 @@ export function redirectForAuth(
   }
 
   if (options?.requireAdmin && session.user.role !== 'admin') {
-    return '/posts'
+    return '/devices'
   }
 
   return null
