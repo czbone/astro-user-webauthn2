@@ -1,3 +1,4 @@
+import type { UserRole } from '@/types/models'
 import { apiFetch, readJson } from './http'
 
 class AdminFetch {
@@ -20,7 +21,7 @@ class AdminFetch {
     return { response: res, data: await readJson<unknown>(res) }
   }
 
-  async createUser(input: { email: string; name: string; role: 'admin' | 'user' }) {
+  async createUser(input: { email: string; name: string; role: UserRole }) {
     const res = await apiFetch('/admin/users', {
       method: 'POST',
       body: JSON.stringify(input)
@@ -74,11 +75,7 @@ class AdminFetch {
     return { response: res, data: await readJson<unknown>(res) }
   }
 
-  async saveGrant(input: {
-    userId: string
-    appId: string
-    permission: 'admin' | 'user' | 'none'
-  }) {
+  async saveGrant(input: { userId: string; appId: string; permission: 'admin' | 'user' | 'none' }) {
     const res = await apiFetch('/admin/grants', {
       method: 'PUT',
       body: JSON.stringify(input)

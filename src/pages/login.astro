@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro'
 import LoginForm from '@/components/LoginForm'
 import { safeHandoffNext } from '@/server/auth/app-host'
+import { homePathForRole } from '@/lib/user-role'
 import { getPageSession } from '@/lib/auth-page'
 
 const next = safeHandoffNext(Astro.url.searchParams.get('next'))
@@ -13,7 +14,7 @@ if (session) {
   if (next) {
     return Astro.redirect(next)
   }
-  return Astro.redirect(session.user.role === 'admin' ? '/dashboard' : '/devices')
+  return Astro.redirect(homePathForRole(session.user.role))
 }
 ---
 

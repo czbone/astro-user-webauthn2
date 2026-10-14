@@ -1,4 +1,5 @@
 import AuthFetch from '@/api-client/auth'
+import { homePathForRole } from '@/lib/user-role'
 import { startRegistration } from '@simplewebauthn/browser'
 import { useState } from 'react'
 
@@ -36,7 +37,7 @@ export default function SetupPasskeyForm() {
       }
 
       const me = await AuthFetch.me()
-      window.location.href = me?.user?.role === 'admin' ? '/dashboard' : '/devices'
+      window.location.href = homePathForRole(me?.user?.role)
     } catch (error) {
       console.error(error)
       alert('パスキー登録がキャンセルされたか失敗しました')

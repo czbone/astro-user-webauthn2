@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { redis } from '@/lib/redis'
 import { redisKeyPrefix } from '@/server/auth/redis-env'
 import UserDB from '@/server/db/user'
+import type { UserRole } from '@/types/models'
 
 export async function resetRedis() {
   const prefix = redisKeyPrefix()
@@ -33,7 +34,7 @@ export async function createTestUser(input?: {
   email?: string
   password?: string
   name?: string
-  role?: 'admin' | 'user'
+  role?: UserRole
 }) {
   const password = input?.password ?? 'test-password-123'
   const email = input?.email ?? `user-${randomBytes(6).toString('hex')}@example.com`

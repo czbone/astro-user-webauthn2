@@ -6,6 +6,7 @@ import {
   slideSession
 } from '@/server/auth/session'
 import { authEnv } from '@/server/auth/env'
+import { canManageUsers } from '@/lib/user-role'
 import type { AppVariables } from '@/server/middleware/types'
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
@@ -80,6 +81,20 @@ export const requireAdmin = createMiddleware<{ Variables: AppVariables }>(async 
   }
   if (user.role !== 'admin') {
     return c.json({ error: '管理者権限が必要です' }, 403)
+  }
+  return next()
+})
+
+export const requireUserManager = createMiddleware<{ Variables: AppVariables }>(async (c, next) => {
+  const user = c.get('user')
+  if (!user) {
+    return c.json({ error: 'ログインが必要です' }, 401)
+  }
+  if (user.mustSetupPasskey) {
+    return c.json({ error: '先にパスキーを登録してください' }, 403)
+  }
+  if (!canManageUsers(user.role)) {
+    return c.json({ error: 'ユーザー管理の権限が必要です' }, 403)
   }
   return next()
 })

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { startAuthentication } from '@simplewebauthn/browser'
 import AuthFetch from '@/api-client/auth'
+import { homePathForRole } from '@/lib/user-role'
 
 export default function LoginForm({ next }: { next?: string }) {
   const [email, setEmail] = useState('')
@@ -78,7 +79,7 @@ export default function LoginForm({ next }: { next?: string }) {
         return
       }
       const role = result.data?.user?.role
-      window.location.href = role === 'admin' ? '/dashboard' : '/devices'
+      window.location.href = homePathForRole(role)
     } catch (error) {
       console.error(error)
       alert('パスキー認証がキャンセルされたか失敗しました')

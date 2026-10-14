@@ -8,6 +8,7 @@ import {
 } from '@/server/auth/cookie'
 import { generateToken, hashToken } from '@/server/auth/tokens'
 import SessionDB from '@/server/db/session'
+import { parseUserRole } from '@/lib/user-role'
 import UserDB from '@/server/db/user'
 import type { AuthUser } from '@/types/models'
 
@@ -68,12 +69,15 @@ export async function readSessionFromToken(
     return null
   }
 
+  const role = parseUserRole(userRow.role)
+  if (!role) return null
+
   const credentialCount = await UserDB.countCredentials(session.userId)
   const user: AuthUser = {
     id: userRow.id,
     email: userRow.email,
     name: userRow.name,
-    role: userRow.role as 'admin' | 'user',
+    role,
     hasPasskey: credentialCount > 0,
     mustSetupPasskey: credentialCount === 0
   }

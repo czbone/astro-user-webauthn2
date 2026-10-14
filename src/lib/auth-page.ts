@@ -1,4 +1,5 @@
 import type { AstroCookies } from 'astro'
+import { canManageUsers } from '@/lib/user-role'
 import {
   resolveSessionFromCookies,
   type ResolveSessionFromCookiesOptions,
@@ -16,6 +17,7 @@ export function redirectForAuth(
   session: ResolvedSession | null,
   options?: {
     requireAdmin?: boolean
+    requireUserManager?: boolean
     allowWithoutPasskey?: boolean
   }
 ): string | null {
@@ -26,6 +28,10 @@ export function redirectForAuth(
   }
 
   if (options?.requireAdmin && session.user.role !== 'admin') {
+    return '/devices'
+  }
+
+  if (options?.requireUserManager && !canManageUsers(session.user.role)) {
     return '/devices'
   }
 

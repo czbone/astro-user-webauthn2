@@ -7,12 +7,23 @@ import { generateToken } from '@/server/auth/tokens'
 import { readDefaultPermission, readGrantPermission } from '@/server/auth/permissions'
 import { AppDB, AppGrantDB, UserDB } from '@/server/db'
 import type { AppRecord } from '@/server/db/app'
-import { loadSession, requireAdmin, slideSessionAfterAuth } from '@/server/middleware/auth'
+import { resolveInviteRole } from '@/lib/user-role'
+import {
+  loadSession,
+  requireAdmin,
+  requireUserManager,
+  slideSessionAfterAuth
+} from '@/server/middleware/auth'
 import type { AppVariables } from '@/server/middleware/types'
 
 const admin = new Hono<{ Variables: AppVariables }>()
 
-admin.use('*', loadSession, requireAdmin, slideSessionAfterAuth)
+admin.use('*', loadSession)
+admin.use('/users/*', requireUserManager)
+admin.use('/stats/*', requireAdmin)
+admin.use('/apps/*', requireAdmin)
+admin.use('/grants/*', requireAdmin)
+admin.use('*', slideSessionAfterAuth)
 
 admin.get('/stats', async (c) => {
   try {
@@ -48,7 +59,11 @@ admin.post('/users', async (c) => {
       .trim()
       .toLowerCase()
     const name = String(body.name || '').trim()
-    const role = body.role === 'admin' ? 'admin' : 'user'
+    const assigned = resolveInviteRole(c.get('user').role, body.role)
+    if (!assigned.ok) {
+      return c.json({ error: assigned.error }, assigned.status)
+    }
+    const role = assigned.role
 
     if (!email || !name) {
       return c.json({ error: 'メールアドレスと名前は必須です' }, 400)

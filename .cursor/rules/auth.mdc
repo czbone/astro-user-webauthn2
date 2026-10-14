@@ -10,7 +10,7 @@ alwaysApply: true
 - パスキーでログインできないときの復旧はパスワード再設定（自動化しない）。招待ユーザーも同じ。
 - パスキー未設定セッションは setup / logout / me 以外を拒否する。
 - 2台目以降のパスキーは再認証＋デバイス招待メール経由のみ。
-- `User.role` は `admin` / `user`。ダッシュボード、ユーザー管理、アプリと `AppGrant` の編集は admin のみ。参加アプリの実効権限には使わない。
+- `User.role` は `admin` / `manager` / `user`。ダッシュボード、アプリと `AppGrant` の編集は admin のみ。ユーザー一覧と招待は admin と manager。manager が招待できるのは `user` と `manager`。参加アプリの実効権限には使わない。
 - 参加アプリの利用可否は `App.defaultPermission` と `AppGrant` の実効権限。利用者全員の行は作らない。`none` は例外だけの拒否。認証サーバー自身の入場に `AppGrant` は使わない。
 - アプリのホストは `PARENT_DOMAIN` の直下サブドメインだけ。Cookie に `Domain` は付けない。WebAuthn の RP ID は認証サーバーのホスト名。
 

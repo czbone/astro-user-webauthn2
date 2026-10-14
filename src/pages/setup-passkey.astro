@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro'
 import SetupPasskeyForm from '@/components/SetupPasskeyForm'
 import { getPageSession, redirectForAuth } from '@/lib/auth-page'
+import { homePathForRole } from '@/lib/user-role'
 
 const session = await getPageSession(Astro.cookies)
 const redirectTo = redirectForAuth(session, { allowWithoutPasskey: true })
@@ -9,7 +10,7 @@ if (redirectTo === '/login') {
   return Astro.redirect('/login')
 }
 if (session && !session.user.mustSetupPasskey) {
-  return Astro.redirect(session.user.role === 'admin' ? '/dashboard' : '/devices')
+  return Astro.redirect(homePathForRole(session.user.role))
 }
 ---
 

@@ -32,6 +32,17 @@ async function adminCookie() {
   return { user, cookie: sessionCookieHeader(token) }
 }
 
+async function managerCookie() {
+  const { user } = await createTestUser({
+    role: 'manager',
+    email: 'manager@example.com',
+    name: 'Manager User'
+  })
+  await insertPasskeyFixture(user.id)
+  const { token } = await createSession(user.id)
+  return { user, cookie: sessionCookieHeader(token) }
+}
+
 describe('admin integration', () => {
   beforeEach(async () => {
     await resetDatabase()
@@ -55,7 +66,7 @@ describe('admin integration', () => {
     ])
   })
 
-  it('returns 403 for non-admin users', async () => {
+  it('returns 403 for users without user management', async () => {
     const { user } = await createTestUser({ role: 'user' })
     await insertPasskeyFixture(user.id)
     const { token } = await createSession(user.id)
@@ -66,7 +77,7 @@ describe('admin integration', () => {
 
     expect(res.status).toBe(403)
     await expect(res.json()).resolves.toMatchObject({
-      error: '管理者権限が必要です'
+      error: 'ユーザー管理の権限が必要です'
     })
   })
 
@@ -172,6 +183,124 @@ describe('admin integration', () => {
     })
     expect(adminRes.status).toBe(201)
     await expect(adminRes.json()).resolves.toMatchObject({ role: 'admin' })
+  })
+
+  it('lets admin invite a manager', async () => {
+    const { cookie } = await adminCookie()
+
+    const res = await app.request('/admin/users', {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: 'role-manager@example.com',
+        name: 'Role Manager',
+        role: 'manager'
+      })
+    })
+
+    expect(res.status).toBe(201)
+    await expect(res.json()).resolves.toMatchObject({ role: 'manager' })
+  })
+
+  it('lets a manager list users and invite user or manager', async () => {
+    const { cookie } = await managerCookie()
+
+    const listRes = await app.request('/admin/users', {
+      headers: { Cookie: cookie }
+    })
+    expect(listRes.status).toBe(200)
+
+    const userRes = await app.request('/admin/users', {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: 'invited-user@example.com',
+        name: 'Invited User',
+        role: 'user'
+      })
+    })
+    expect(userRes.status).toBe(201)
+    await expect(userRes.json()).resolves.toMatchObject({ role: 'user' })
+
+    const managerRes = await app.request('/admin/users', {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: 'invited-manager@example.com',
+        name: 'Invited Manager',
+        role: 'manager'
+      })
+    })
+    expect(managerRes.status).toBe(201)
+    await expect(managerRes.json()).resolves.toMatchObject({ role: 'manager' })
+  })
+
+  it('rejects a manager inviting an admin', async () => {
+    const { cookie } = await managerCookie()
+
+    const res = await app.request('/admin/users', {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: 'elevated@example.com',
+        name: 'Elevated',
+        role: 'admin'
+      })
+    })
+
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'このロールは指定できません'
+    })
+  })
+
+  it('rejects an unknown invite role', async () => {
+    const { cookie } = await adminCookie()
+
+    const res = await app.request('/admin/users', {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: 'unknown-role@example.com',
+        name: 'Unknown Role',
+        role: 'owner'
+      })
+    })
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'ロールが正しくありません'
+    })
+  })
+
+  it('rejects manager access to admin-only APIs', async () => {
+    const { cookie } = await managerCookie()
+
+    const statsRes = await app.request('/admin/stats', { headers: { Cookie: cookie } })
+    const appsRes = await app.request('/admin/apps', { headers: { Cookie: cookie } })
+    const grantsRes = await app.request('/admin/grants', { headers: { Cookie: cookie } })
+
+    expect(statsRes.status).toBe(403)
+    expect(appsRes.status).toBe(403)
+    expect(grantsRes.status).toBe(403)
+    await expect(appsRes.json()).resolves.toMatchObject({
+      error: '管理者権限が必要です'
+    })
   })
 
   it('verifies sendUserInviteMail was called with correct params', async () => {

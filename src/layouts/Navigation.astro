@@ -1,6 +1,7 @@
 ---
 import LogoutButton from '@/components/LogoutButton'
 import { getPageSession } from '@/lib/auth-page'
+import { canManageUsers, roleLabel } from '@/lib/user-role'
 
 const currentPath = Astro.url.pathname
 // Layout 配下では Cookie を書き換えない（Astro はページ frontmatter 以外での set を拒否する）
@@ -18,38 +19,40 @@ const user = session?.user
         {user && !user.mustSetupPasskey && (
           <div class="ml-10 flex items-baseline space-x-4">
             {user.role === 'admin' && (
-              <>
-                <a
-                  href="/dashboard"
-                  class={`rounded-md px-3 py-2 text-sm font-medium ${
-                    currentPath === '/dashboard'
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                  }`}
-                >
-                  ダッシュボード
-                </a>
-                <a
-                  href="/admin/users"
-                  class={`rounded-md px-3 py-2 text-sm font-medium ${
-                    currentPath.startsWith('/admin/users')
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                  }`}
-                >
-                  ユーザー管理
-                </a>
-                <a
-                  href="/admin/apps"
-                  class={`rounded-md px-3 py-2 text-sm font-medium ${
-                    currentPath.startsWith('/admin/apps')
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                  }`}
-                >
-                  アプリ
-                </a>
-              </>
+              <a
+                href="/dashboard"
+                class={`rounded-md px-3 py-2 text-sm font-medium ${
+                  currentPath === '/dashboard'
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                }`}
+              >
+                ダッシュボード
+              </a>
+            )}
+            {canManageUsers(user.role) && (
+              <a
+                href="/admin/users"
+                class={`rounded-md px-3 py-2 text-sm font-medium ${
+                  currentPath.startsWith('/admin/users')
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                }`}
+              >
+                ユーザー管理
+              </a>
+            )}
+            {user.role === 'admin' && (
+              <a
+                href="/admin/apps"
+                class={`rounded-md px-3 py-2 text-sm font-medium ${
+                  currentPath.startsWith('/admin/apps')
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                }`}
+              >
+                アプリ
+              </a>
             )}
             <a
               href="/devices"
@@ -68,7 +71,7 @@ const user = session?.user
         {user ? (
           <>
             <span class="hidden text-sm text-gray-300 sm:inline">
-              {user.name}（{user.role}）
+              {user.name}（{roleLabel(user.role)}）
             </span>
             <LogoutButton client:load />
           </>

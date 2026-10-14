@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import AdminFetch from '@/api-client/admin'
+import { assignableRoles, isUserRole, roleLabel } from '@/lib/user-role'
+import type { UserRole } from '@/types/models'
 
 type UserRow = {
   id: string
@@ -10,11 +12,12 @@ type UserRow = {
   credentialCount: number
 }
 
-export default function AdminUsersSection() {
+export default function AdminUsersSection({ actorRole }: { actorRole: UserRole }) {
+  const roles = assignableRoles(actorRole)
   const [users, setUsers] = useState<UserRow[]>([])
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
-  const [role, setRole] = useState<'user' | 'admin'>('user')
+  const [role, setRole] = useState<UserRole>('user')
   const [loading, setLoading] = useState(false)
 
   async function load() {
@@ -78,11 +81,14 @@ export default function AdminUsersSection() {
           <label className="mb-1 block text-sm text-gray-700">ロール</label>
           <select
             value={role}
-            onChange={(e) => setRole(e.target.value as 'user' | 'admin')}
+            onChange={(e) => setRole(e.target.value as UserRole)}
             className="rounded border border-gray-300 px-3 py-2"
           >
-            <option value="user">user</option>
-            <option value="admin">admin</option>
+            {roles.map((value) => (
+              <option key={value} value={value}>
+                {roleLabel(value)}
+              </option>
+            ))}
           </select>
         </div>
         <button
@@ -111,7 +117,9 @@ export default function AdminUsersSection() {
                 <tr key={user.id} className="border-b border-gray-100">
                   <td className="py-2 pr-4">{user.name}</td>
                   <td className="py-2 pr-4">{user.email}</td>
-                  <td className="py-2 pr-4">{user.role}</td>
+                  <td className="py-2 pr-4">
+                    {isUserRole(user.role) ? roleLabel(user.role) : user.role}
+                  </td>
                   <td className="py-2">{user.credentialCount}</td>
                 </tr>
               ))}
