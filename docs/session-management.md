@@ -23,7 +23,7 @@ WebAuthn の Credential と Session は別物として管理します。
 | ストア | 対象 |
 |--------|------|
 | PostgreSQL | `User`, `WebAuthnCredential`, `App`, `AppGrant` |
-| Redis | Session、WebAuthn challenge / reauth-ok、Rate limit、DeviceInvite、PasswordReset、MagicLink |
+| Redis | Session、WebAuthn challenge / reauth-ok、Rate limit、DeviceInvite、PasswordReset、MagicLink、EmailChange |
 
 ## 3. ログイン時
 
@@ -126,7 +126,7 @@ Cookie 削除と、当該 Session の Redis キー削除（`DEL sess:{appId}:{to
 
 ## 8. 全セッション失効
 
-パスワード再設定完了時など:
+パスワード再設定の完了時、招待マジックリンクの再送時、メールアドレス変更の確定時。受信確認だけでは失効しない。
 
 ```text
 SMEMBERS sess:user:{userId}
@@ -153,3 +153,4 @@ sess:user:{userId} を DEL
 | DeviceInvite | 3600 秒 | 単回使用、ユーザー索引 SET あり |
 | PasswordReset | 3600 秒 | 単回使用、ユーザー索引 SET あり |
 | MagicLink | 3600 秒 | 単回使用、ユーザー索引 SET あり、招待専用 |
+| EmailChange | 3600 秒 | ユーザー索引 SET あり。受信済みフラグを持ち、確定または再申請まで残る |

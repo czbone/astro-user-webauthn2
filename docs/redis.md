@@ -7,7 +7,7 @@
 | ストア | 対象 |
 |--------|------|
 | PostgreSQL | `User`, `WebAuthnCredential`, `App`, `AppGrant` |
-| Redis | Session、WebAuthn challenge / reauth-ok、Rate limit、DeviceInvite、PasswordReset、MagicLink |
+| Redis | Session、WebAuthn challenge / reauth-ok、Rate limit、DeviceInvite、PasswordReset、MagicLink、EmailChange |
 
 クライアントは `ioredis` を想定し、接続はプロセス内シングルトンとする（開発時の HMR では `globalThis` 再利用を推奨）。
 
@@ -40,6 +40,10 @@
 | `reset:user:{userId}` | set | 本体に合わせて維持 | 未使用再設定の一括無効化 |
 | `magic:{tokenHash}` | string (JSON) | 3600 秒 | 招待マジックリンク |
 | `magic:user:{userId}` | set | 本体に合わせて維持 | 未使用マジックリンクの一括無効化 |
+| `emailchg:{tokenHash}` | string (JSON) | 3600 秒 | メールアドレス変更。受信済みでも確定まで残す |
+| `emailchg:user:{userId}` | set | 本体に合わせて維持 | 対象ユーザーの未使用変更 |
+| `emailchg:addr:{email}` | string | 3600 秒 | 手続き中アドレスからトークンハッシュへの索引 |
+| `emailchg:users` | set | 手続きが残る間 | 手続き中ユーザー ID の一覧 |
 
 `tokenHash` はいずれも生トークンの SHA-256（hex 等、アプリ内で統一したエンコード）。
 
@@ -91,7 +95,7 @@
 
 固定ウィンドウ方式。
 
-- キー例: `rl:pwd:{ip}:{email}`, `rl:method:{ip}:{email}`, `rl:reset:{ip}:{email}`, `rl:magic:{ip}`, `rl:magic-resend:{ip}:{email}`
+- キー例: `rl:pwd:{ip}:{email}`, `rl:method:{ip}:{email}`, `rl:reset:{ip}:{email}`, `rl:magic:{ip}`, `rl:magic-resend:{ip}:{email}`, `rl:emailchg:{ip}:{userId}`, `rl:emailchg-verify:{ip}`, `rl:emailchg-commit:{ip}:{adminUserId}`
 - `INCR`。カウンタが 1 のときだけ `PEXPIRE` でウィンドウのミリ秒を設定
 - 制限値（現行どおり）:
   - password: 10 / 15 分
@@ -99,9 +103,12 @@
   - reset: 5 / 15 分
   - magic consume: 10 / 15 分
   - magic resend: 5 / 15 分
+  - email change request: 5 / 15 分
+  - email change verify: 10 / 15 分
+  - email change commit: 10 / 15 分
 - 超過時は `PTTL` から `retryAfterSec` を算出
 
-## DeviceInvite / PasswordReset / MagicLink
+## DeviceInvite / PasswordReset / MagicLink / EmailChange
 
 値:
 
@@ -113,22 +120,38 @@
 }
 ```
 
+EmailChange の値は、確定前の新しいアドレスと受信時刻を足す。未受信の `verifiedAt` は null。
+
+```json
+{
+  "id": "<uuid>",
+  "userId": "<uuid>",
+  "email": "<new email>",
+  "createdAt": "<ISO8601>",
+  "verifiedAt": null
+}
+```
+
 | 操作 | 挙動 |
 |------|------|
 | 発行 | 本体 `SET ... EX 3600` + ユーザー索引へ `SADD` |
 | 検証 | `GET`。無し / TTL 切れは無効 |
 | 使用済み | 本体キー削除 + 索引から `SREM`（`usedAt` は持たない） |
 | 未使用の一括無効化 | 索引 SET の全要素を削除し、索引自体も削除 |
+| EmailChange の受信確認 | `verifiedAt` を記録する。本体キーとアドレス索引は残す。TTL は発行時の残り時間を超えて延ばさない |
+| EmailChange の確定・再申請 | 本体、ユーザー索引、アドレス索引を削除する |
 
-メール内リンクのトークン可用性は Redis のデータ存続に依存する。Redis の再起動や永続化なしの消失では、未使用の招待・再設定・マジックリンクトークンは無効になる。
+メール内リンクのトークン可用性は Redis のデータ存続に依存する。Redis の再起動や永続化なしの消失では、未使用の招待・再設定・マジックリンク・メール変更トークンは無効になる。
+
+メールアドレス変更の確定用再認証は `chal:emailchg-reauth:{userId}` と `chal:emailchg-reauth-ok:{userId}` を使う。デバイス招待の `reauth` / `reauth-ok` とは別キーであり、流用できない。
 
 ## 障害時の挙動
 
 | 状況 | 期待挙動 |
 |------|----------|
-| Redis 接続不可 | セッション発行・検証、challenge、レート制限、招待・再設定・マジックリンクが失敗する。認証系 API は 5xx またはサービス不可として扱う |
+| Redis 接続不可 | セッション発行・検証、challenge、レート制限、招待・再設定・マジックリンク・メール変更が失敗する。認証系 API は 5xx またはサービス不可として扱う |
 | セッションキー消失 | 当該リクエストは未認証。再ログインが必要 |
-| 招待・再設定・マジックリンクキー消失 | リンク無効。再発行が必要 |
+| 招待・再設定・マジックリンク・メール変更キー消失 | リンク無効。再発行が必要 |
 | PostgreSQL のみ障害 | セッションキーがあっても User 解決に失敗し認証不可 |
 
 Redis は可用性の単一障害点になる。本番では永続化（AOF / RDB）と監視を推奨する。

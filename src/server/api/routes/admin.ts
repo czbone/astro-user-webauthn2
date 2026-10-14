@@ -5,7 +5,8 @@ import { issueInviteMagicLink } from '@/server/auth/magic-link'
 import { hashPassword } from '@/server/auth/password'
 import { generateToken } from '@/server/auth/tokens'
 import { readDefaultPermission, readGrantPermission } from '@/server/auth/permissions'
-import { AppDB, AppGrantDB, UserDB } from '@/server/db'
+import emailChanges from '@/server/api/routes/email-change'
+import { AppDB, AppGrantDB, EmailChangeDB, UserDB } from '@/server/db'
 import type { AppRecord } from '@/server/db/app'
 import { resolveInviteRole } from '@/lib/user-role'
 import {
@@ -23,6 +24,7 @@ admin.use('/users/*', requireUserManager)
 admin.use('/stats/*', requireAdmin)
 admin.use('/apps/*', requireAdmin)
 admin.use('/grants/*', requireAdmin)
+admin.use('/email-changes/*', requireAdmin)
 admin.use('*', slideSessionAfterAuth)
 
 admin.get('/stats', async (c) => {
@@ -72,6 +74,10 @@ admin.post('/users', async (c) => {
     const existing = await UserDB.findByEmail(email)
     if (existing) {
       return c.json({ error: 'このメールアドレスは既に登録されています' }, 409)
+    }
+    const pendingEmail = await EmailChangeDB.findByEmail(email)
+    if (pendingEmail) {
+      return c.json({ error: 'このメールアドレスは変更手続き中です' }, 409)
     }
 
     const passwordHash = await hashPassword(generateToken())
@@ -302,5 +308,7 @@ admin.delete('/grants/:userId/:appId', async (c) => {
     return c.json({ error: '権限の削除に失敗しました' }, 500)
   }
 })
+
+admin.route('/email-changes', emailChanges)
 
 export default admin

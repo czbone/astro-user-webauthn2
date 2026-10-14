@@ -28,3 +28,4 @@ export const SESSION_MAX_AGE_MS = SESSION_MAX_AGE_SECONDS * 1000
 export const DEVICE_INVITE_TTL_MS = 60 * 60 * 1000
 export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000
 export const MAGIC_LINK_TTL_MS = 60 * 60 * 1000
+export const EMAIL_CHANGE_TTL_MS = 60 * 60 * 1000

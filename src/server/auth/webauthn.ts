@@ -186,7 +186,13 @@ export async function verifyAuthentication(response: AuthenticationResponseJSON)
   return { verification, userId: credential.userId }
 }
 
-export async function createReauthOptions(userId: string) {
+type ReauthKind = 'reauth' | 'emailchg-reauth'
+
+function reauthOkKind(kind: ReauthKind): 'reauth-ok' | 'emailchg-reauth-ok' {
+  return kind === 'reauth' ? 'reauth-ok' : 'emailchg-reauth-ok'
+}
+
+async function createScopedReauthOptions(userId: string, kind: ReauthKind) {
   const credentials = await CredentialDB.listByUserId(userId)
   if (credentials.length === 0) {
     throw new Error('パスキーが登録されていません')
@@ -198,12 +204,16 @@ export async function createReauthOptions(userId: string) {
     allowCredentials: credentials.map(toCredentialDescriptor)
   })
 
-  await saveChallenge('reauth', options.challenge, userId)
+  await saveChallenge(kind, options.challenge, userId)
   return options
 }
 
-export async function verifyReauth(userId: string, response: AuthenticationResponseJSON) {
-  const expected = await takeChallenge('reauth', userId)
+async function verifyScopedReauth(
+  userId: string,
+  response: AuthenticationResponseJSON,
+  kind: ReauthKind
+) {
+  const expected = await takeChallenge(kind, userId)
   if (!expected) {
     throw new Error('再認証チャレンジが見つかりません')
   }
@@ -235,10 +245,33 @@ export async function verifyReauth(userId: string, response: AuthenticationRespo
     credential.id,
     BigInt(verification.authenticationInfo.newCounter)
   )
-  await saveChallenge('reauth-ok', '1', userId)
+  await saveChallenge(reauthOkKind(kind), '1', userId)
   return verification
+}
+
+export async function createReauthOptions(userId: string) {
+  return createScopedReauthOptions(userId, 'reauth')
+}
+
+export async function verifyReauth(userId: string, response: AuthenticationResponseJSON) {
+  return verifyScopedReauth(userId, response, 'reauth')
 }
 
 export async function consumeReauth(userId: string): Promise<boolean> {
   return Boolean(await takeChallenge('reauth-ok', userId))
+}
+
+export async function createEmailChangeReauthOptions(userId: string) {
+  return createScopedReauthOptions(userId, 'emailchg-reauth')
+}
+
+export async function verifyEmailChangeReauth(
+  userId: string,
+  response: AuthenticationResponseJSON
+) {
+  return verifyScopedReauth(userId, response, 'emailchg-reauth')
+}
+
+export async function consumeEmailChangeReauth(userId: string): Promise<boolean> {
+  return Boolean(await takeChallenge('emailchg-reauth-ok', userId))
 }

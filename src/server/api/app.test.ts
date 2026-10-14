@@ -73,7 +73,9 @@ vi.mock('@/server/db', () => ({
 
 vi.mock('@/server/auth/mail', () => ({
   sendPasswordResetMail: vi.fn(),
-  sendUserInviteMail: vi.fn()
+  sendUserInviteMail: vi.fn(),
+  sendEmailChangeRequestMail: vi.fn(),
+  sendEmailChangeNoticeMail: vi.fn()
 }))
 
 const { default: app } = await import('@/server/api/app')

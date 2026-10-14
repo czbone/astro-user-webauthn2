@@ -61,7 +61,8 @@ pnpm test:all
 - `src/server/api/admin.integration.test.ts` — ユーザー招待・一覧・統計、アプリの既定権限、例外の `none`
 - `src/server/api/devices.integration.test.ts` — 一覧、削除、再認証、招待、登録
 - `src/server/auth/handoff.integration.test.ts` — 引き渡しと実効権限
-- `src/server/db/*.integration.test.ts` — User / Credential / Session / DeviceInvite / PasswordReset / MagicLink
+- `src/server/api/email-change.integration.test.ts` — メールアドレス変更の申請、受信確認、確定
+- `src/server/db/*.integration.test.ts` — User / Credential / Session / DeviceInvite / PasswordReset / MagicLink / EmailChange
 
 ## 静的チェック
 

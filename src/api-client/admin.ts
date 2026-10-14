@@ -21,6 +21,59 @@ class AdminFetch {
     return { response: res, data: await readJson<unknown>(res) }
   }
 
+  async listEmailChanges() {
+    const res = await apiFetch('/admin/email-changes')
+    if (!res) return null
+    return {
+      response: res,
+      data: await readJson<
+        | { userId: string; email: string; createdAt: string; verifiedAt: string | null }[]
+        | { error?: string }
+      >(res)
+    }
+  }
+
+  async requestEmailChange(input: { userId: string; email: string }) {
+    const res = await apiFetch('/admin/email-changes', {
+      method: 'POST',
+      body: JSON.stringify(input)
+    })
+    if (!res) return null
+    return { response: res, data: await readJson<{ ok?: boolean; error?: string }>(res) }
+  }
+
+  async emailChangeReauthOptions() {
+    const res = await apiFetch('/admin/email-changes/reauth/options', {
+      method: 'POST',
+      body: '{}'
+    })
+    if (!res) return null
+    return { response: res, data: await readJson<{ options?: unknown; error?: string }>(res) }
+  }
+
+  async emailChangeReauthVerify(response: unknown) {
+    const res = await apiFetch('/admin/email-changes/reauth/verify', {
+      method: 'POST',
+      body: JSON.stringify({ response })
+    })
+    if (!res) return null
+    return { response: res, data: await readJson<{ ok?: boolean; error?: string }>(res) }
+  }
+
+  async commitEmailChange(userId: string) {
+    const res = await apiFetch(`/admin/email-changes/${encodeURIComponent(userId)}/commit`, {
+      method: 'POST',
+      body: '{}'
+    })
+    if (!res) return null
+    return {
+      response: res,
+      data: await readJson<{ ok?: boolean; email?: string; selfRevoked?: boolean; error?: string }>(
+        res
+      )
+    }
+  }
+
   async createUser(input: { email: string; name: string; role: UserRole }) {
     const res = await apiFetch('/admin/users', {
       method: 'POST',

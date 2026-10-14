@@ -55,5 +55,7 @@ vi.mock('hono', async (importOriginal) => {
 vi.mock('@/server/auth/mail', () => ({
   sendPasswordResetMail: vi.fn(),
   sendUserInviteMail: vi.fn(),
-  sendDeviceInviteMail: vi.fn()
+  sendDeviceInviteMail: vi.fn(),
+  sendEmailChangeRequestMail: vi.fn(),
+  sendEmailChangeNoticeMail: vi.fn()
 }))

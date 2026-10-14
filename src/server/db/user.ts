@@ -31,6 +31,13 @@ class UserDB {
     })
   }
 
+  async updateEmail(userId: string, email: string) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: { email: email.toLowerCase() }
+    })
+  }
+
   async list() {
     const users = await prisma.user.findMany({
       orderBy: { createdAt: 'desc' },

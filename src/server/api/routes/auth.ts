@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server'
 import { PASSWORD_RESET_TTL_MS, authEnv } from '@/server/auth/env'
+import { markEmailChangeReceived } from '@/server/auth/email-change'
 import { issueInviteMagicLink } from '@/server/auth/magic-link'
 import { sendPasswordResetMail } from '@/server/auth/mail'
 import { hashPassword, verifyPassword } from '@/server/auth/password'
@@ -303,6 +304,23 @@ auth.post('/password-reset/confirm', async (c) => {
   } catch (error) {
     console.error('パスワード再設定確定エラー:', error)
     return c.json({ error: 'パスワード再設定に失敗しました' }, 500)
+  }
+})
+
+auth.post('/email-change/verify', async (c) => {
+  try {
+    const body = await c.req.json()
+    const result = await markEmailChangeReceived({
+      token: String(body.token || ''),
+      ip: c.req.header('x-forwarded-for') || 'local'
+    })
+    if (!result.ok) {
+      return c.json({ error: result.error }, result.status)
+    }
+    return c.json({ ok: true }, 200)
+  } catch (error) {
+    console.error('メールアドレス変更の受信確認エラー:', error)
+    return c.json({ error: '受信確認に失敗しました' }, 500)
   }
 })
 

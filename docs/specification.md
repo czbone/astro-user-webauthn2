@@ -47,6 +47,22 @@ seed 管理者: 初期パスワードログイン → パスキー必須登録 �
 復旧: ログインできないとき → メール → 新パスワード（警告）→ 自動ログイン → パスキー再登録
 ```
 
+## メールアドレス変更
+
+同じ人の受信箱が変わったとき、admin が `User.id` を残してメールアドレスだけを付け替える。アカウントの作り直しにはしない。パスキー、ロール、`AppGrant` は残す。本人が自分のアドレスを変える経路は置かない。アドレスが別人のものになるときは、この操作を使わず、既存の招待で別の `User` を作る。
+
+操作できるのは `admin` だけ。`manager` のユーザー一覧・招待には含めない。
+
+1. admin が対象ユーザーと新しいアドレスを申請する。この時点では `User.email` もセッションも変えない。アドレスは招待と同じく小文字で一意判定する。同じユーザーの現アドレス、他ユーザーの現アドレス、他の未使用 EmailChange が押さえているアドレスは拒否する。ユーザー招待も、未使用 EmailChange が押さえているアドレスでは拒否する。再申請したときは、そのユーザーの未使用のメール変更トークンだけを無効にして新しいリンクを送る。
+2. 新しいアドレスへ確認リンクを送る。トークンの生値はメールの URL だけに置き、Redis キーは SHA-256 ハッシュにする。TTL は 1 時間。GET では受信済みにしない。
+3. 受信者が確認ボタンを押すと、その EmailChange に受信時刻を記録する。`User.email`、セッション、パスキー、他のメールトークンは変えない。セッションは発行しない。すでに受信済みなら、そのまま受信済みと返す。トークンは消さない。期限は発行時のまま延ばさない。
+4. ログイン中の admin が、受信済みのアドレスを見たうえで、自分のパスキーで再認証して確定する。再認証はデバイス招待の再認証と別のチャレンジにし、流用できない。確定が書くアドレスは、クライアント入力ではなく受信済みレコードのアドレスだけである。確定の直前に、そのアドレスが他ユーザーの現アドレスでも、他の未使用 EmailChange のアドレスでもないことをもう一度検査する。通ったら `User.email` を更新し、対象ユーザーの全セッションを `sess:user:{userId}` 経由で失効する。未使用の MagicLink、DeviceInvite、PasswordReset、その EmailChange を無効にする。古いアドレスへ変更通知を送る。通知に新しいアドレス、復帰リンク、ログインリンクは書かない。
+5. 確定後、パスキーが 1 件以上ある利用者は、ログイン画面で新しいアドレスを入れ、既存のパスキーで入り直す。パスキーの `userID` は `User.id` のままなので再登録は不要。認証器に残る `userName` は登録時のアドレスのままでよい。パスキーが 0 件の利用者は、ログイン画面の既存のマジックリンク再送を新しいアドレスへ使う。
+
+受信済みのまま期限が切れた申請は無効になる。アドレスは変わらない。admin が自分のアドレスを確定したときも、自分のセッションは確定時に失効する。再認証はその前に済ませ、再入場は新しいアドレスでのパスキーログインである。
+
+`SEED_ADMIN_EMAIL` は User が空のときの作成にだけ使う。変更後のデータベース上のアドレスには追従しない。
+
 ## ロールと権限
 
 | 機能                                               | user                        | manager                       | admin                  |
@@ -59,6 +75,7 @@ seed 管理者: 初期パスワードログイン → パスキー必須登録 �
 | 自分のデバイス管理                                 | ○                           | ○                             | ○                      |
 | `/dashboard`                                       | ×                           | ×                             | ○                      |
 | ユーザー招待・一覧                                 | ×                           | ○（`user` と `manager` のみ） | ○                      |
+| メールアドレス変更（受信確認のあとパスキーで確定） | ×                           | ×                             | ○                      |
 | アプリ登録・既定権限・`AppGrant` の編集            | ×                           | ×                             | ○                      |
 
 - ロール値: `admin` / `manager` / `user`
@@ -97,6 +114,7 @@ seed 管理者: 初期パスワードログイン → パスキー必須登録 �
 - DeviceInvite: `invite:{tokenHash}` + `invite:user:{userId}` 索引（TTL 1h）
 - PasswordReset: `reset:{tokenHash}` + `reset:user:{userId}` 索引（TTL 1h）
 - MagicLink: `magic:{tokenHash}` + `magic:user:{userId}` 索引（TTL 1h、招待専用）
+- EmailChange: `emailchg:{tokenHash}` + `emailchg:user:{userId}` 索引（TTL 1h、受信済みでもキーは残し、確定または再申請で削除）
 - WebAuthn challenge / reauth-ok: `chal:*`（TTL 5分、消費型）
 - Rate limit: `rl:*`（固定ウィンドウ）
 
@@ -112,7 +130,7 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 | Token                        | 通常アクセスでは変更しない（Cookie Max-Age と Redis TTL のみ更新）                    |
 | ログアウト                   | Cookie 削除 + 当該 Session キー削除（他アプリ・他デバイスは残す）                     |
 | すべてのアプリからログアウト | ユーザー索引の全要素を削除し、認証サーバーの Cookie を削除する                        |
-| 全失効                       | `sess:user:{userId}` 経由で全キー削除（パスワード再設定時、招待マジックリンク再送時） |
+| 全失効                       | `sess:user:{userId}` 経由で全キー削除（パスワード再設定時、招待マジックリンク再送時、メールアドレス変更の確定時） |
 
 詳細は [session-management.md](./session-management.md)。
 
@@ -120,7 +138,7 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 
 - `MAIL_MODE=console`: 実送信せずログ出力（ローカル既定）
 - `MAIL_MODE=smtp`: nodemailer で実 SMTP 送信
-- 対象: ユーザー招待（マジックリンク）、デバイス招待、アカウント復旧（パスワード再設定）
+- 対象: ユーザー招待（マジックリンク）、デバイス招待、アカウント復旧（パスワード再設定）、メールアドレス変更（新しいアドレスへの確認、古いアドレスへの通知）
 
 ## API 概要
 
@@ -133,12 +151,16 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 - `POST /magic/consume` — 招待トークン消費（確認ボタン）。パスキー済みは拒否
 - `POST /magic/resend` — パスキー 0 件のときだけ再発行。発行時は既存 Session を全削除
 - `POST /password-reset/request|confirm` — パスキー不能時の復旧。confirm 確定時に全 Credential 削除。自動化しない（新パスワード入力が必要）
+- `POST /email-change/verify` — メールアドレス変更の受信確認。セッションは発行しない。`User.email` は変えない
 - `POST /logout` / `POST /logout-all` / `GET /me`
 - `GET /auth/handoff` — 参加アプリへのセッション引き渡し（`/api` の外）
 
 ### 管理者 `/api/admin`
 
-- `GET /users` / `POST /users`（招待マジックリンク＋メール。`AppGrant` は自動では付かない）
+- `GET /users` / `POST /users`（招待マジックリンク＋メール。`AppGrant` は自動では付かない。未使用 EmailChange が押さえているアドレスは 409）
+- `GET /email-changes` / `POST /email-changes`（admin のみ。申請は確認メールを送るだけで `User.email` もセッションも変えない）
+- `POST /email-changes/reauth/options|verify`（確定用。デバイス招待の再認証とは別チャレンジ）
+- `POST /email-changes/:userId/commit`（受信済みの記録にあるアドレスだけを書き、対象の全セッションを失効する）
 - `GET /stats`（ユーザー数と管理者数）
 - `GET /apps` は各アプリに `defaultPermission`（`null` または正の権限）と `isAuthServer` を含める。認証サーバーの行は固定テキストで、値がある項目だけ出す
 - `POST /apps` は `id`、`name`、`origin`、`redirectUris`、`defaultPermission` を受け取る。`defaultPermission` は必須で `null` または正の権限。認証サーバー自身の ID は登録できない
@@ -190,11 +212,14 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 - 2台目以降のパスキーは再認証＋メール招待のみ（クリックではログインしない）
 - パスワード再設定は「ログインできないときの復旧」であり、自動化しない。UI で全パスキー無効化を警告表示
 - 再設定完了時は全 Credential 削除・全 Session 失効・未使用 DeviceInvite / MagicLink 無効化
+- メールアドレス変更の確定時は、対象ユーザーの全 Session を失効し、未使用の DeviceInvite / PasswordReset / MagicLink / EmailChange を無効化する。Credential は削除しない。受信確認だけでは失効しない
+- メールアドレス変更の確定用再認証は、デバイス招待の再認証を流用できない
 - 招待マジックリンクの再送は、パスキー 0 件で新リンクを発行するときだけ既存 Session を全削除する
 - GET ではトークンを消費しない（確認ボタンの POST で消費）
 
 ## トレードオフ
 
 - メール受信箱の侵害は初回アカウント掌握および復旧（全パスキー削除）につながる（メール側保護が前提）
+- パスキーを持つ admin は、受信済みのアドレスへ復旧先を移せる。admin のセッションだけでは確定できず、確認リンクのクリックだけでも確定できない
 - パスワード再設定は1台紛失でも全パスキーをリセットする（安全側）。パスキーが残っていても完了できる
 - 招待・再設定リンクの可用性は Redis の永続化設定に依存する（Redis 再起動・データ消失で未使用トークンは無効になる）

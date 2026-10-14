@@ -74,6 +74,15 @@ class AuthFetch {
     }
   }
 
+  async verifyEmailChange(token: string) {
+    const res = await apiFetch('/auth/email-change/verify', {
+      method: 'POST',
+      body: JSON.stringify({ token })
+    })
+    if (!res) return null
+    return { response: res, data: await readJson<{ ok?: boolean; error?: string }>(res) }
+  }
+
   async magicConsume(token: string) {
     const res = await apiFetch('/auth/magic/consume', {
       method: 'POST',

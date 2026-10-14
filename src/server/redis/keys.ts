@@ -12,5 +12,9 @@ export const RedisKeys = {
   reset: (tokenHash: string) => redisKey(`reset:${tokenHash}`),
   resetUser: (userId: string) => redisKey(`reset:user:${userId}`),
   magic: (tokenHash: string) => redisKey(`magic:${tokenHash}`),
-  magicUser: (userId: string) => redisKey(`magic:user:${userId}`)
+  magicUser: (userId: string) => redisKey(`magic:user:${userId}`),
+  emailChange: (tokenHash: string) => redisKey(`emailchg:${tokenHash}`),
+  emailChangeUser: (userId: string) => redisKey(`emailchg:user:${userId}`),
+  emailChangeAddr: (email: string) => redisKey(`emailchg:addr:${email}`),
+  emailChangeUsers: () => redisKey('emailchg:users')
 }

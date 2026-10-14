@@ -1,0 +1,15 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import EmailChangeVerifyForm from '@/components/EmailChangeVerifyForm'
+
+const { token } = Astro.params
+if (!token) {
+  return Astro.redirect('/login')
+}
+---
+
+<Layout title="メールアドレスの確認">
+  <main class="mx-auto max-w-3xl px-4 py-10">
+    <EmailChangeVerifyForm client:load token={token} />
+  </main>
+</Layout>

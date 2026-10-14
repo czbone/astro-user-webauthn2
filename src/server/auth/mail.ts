@@ -85,6 +85,49 @@ export async function sendDeviceInviteMail(params: { to: string; name: string; t
   })
 }
 
+export async function sendEmailChangeRequestMail(params: {
+  to: string
+  name: string
+  token: string
+}) {
+  const url = `${authEnv.appUrl()}/email-change/${params.token}`
+  const text = [
+    `${params.name} 様`,
+    '',
+    'メールアドレス変更の確認です（1時間有効）。',
+    '',
+    url,
+    '',
+    'リンクを開いたあと、画面のボタンで受信を確認してください。',
+    'この操作ではログインせず、メールアドレスもまだ変わりません。',
+    '心当たりがない場合はこのメールを無視してください。'
+  ].join('\n')
+
+  await sendMail({
+    to: params.to,
+    subject: 'メールアドレス変更の確認',
+    text
+  })
+}
+
+export async function sendEmailChangeNoticeMail(params: { to: string; name: string }) {
+  const text = [
+    `${params.name} 様`,
+    '',
+    'アカウントのメールアドレスが変更されました。',
+    '登録済みのセッションは無効になっています。',
+    '新しいメールアドレスでログインし直してください。',
+    '',
+    'このメールに心当たりがない場合は、管理者に連絡してください。'
+  ].join('\n')
+
+  await sendMail({
+    to: params.to,
+    subject: 'メールアドレスが変更されました',
+    text
+  })
+}
+
 export async function sendPasswordResetMail(params: { to: string; name: string; token: string }) {
   const url = `${authEnv.appUrl()}/reset-password/${params.token}`
   const text = [
