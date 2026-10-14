@@ -1,3 +1,5 @@
+import { canChangeUserEmail } from '@/lib/user-role'
+import type { UserRole } from '@/types/models'
 import { EMAIL_CHANGE_TTL_MS } from '@/server/auth/env'
 import { sendEmailChangeNoticeMail, sendEmailChangeRequestMail } from '@/server/auth/mail'
 import { checkRateLimit } from '@/server/auth/rate-limit'
@@ -36,6 +38,7 @@ function normalizeEmail(value: unknown): string {
 }
 
 export async function requestEmailChange(input: {
+  actorRole: UserRole
   userId: string
   email: unknown
   ip: string
@@ -56,6 +59,9 @@ export async function requestEmailChange(input: {
   const user = await UserDB.findById(input.userId)
   if (!user) {
     return { ok: false, status: 404, error: 'ユーザーが見つかりません' }
+  }
+  if (!canChangeUserEmail(input.actorRole, user.role)) {
+    return { ok: false, status: 403, error: 'このユーザーのメールアドレスは変更できません' }
   }
   if (user.email === email) {
     return { ok: false, status: 400, error: '現在のメールアドレスと同じです' }
@@ -110,12 +116,13 @@ export async function markEmailChangeReceived(input: {
 }
 
 export async function commitEmailChange(input: {
-  adminUserId: string
+  actorRole: UserRole
+  actorUserId: string
   targetUserId: string
   ip: string
 }): Promise<{ ok: true; email: string; selfRevoked: boolean } | EmailChangeFailure> {
   const limited = await checkRateLimit(
-    `emailchg-commit:${input.ip}:${input.adminUserId}`,
+    `emailchg-commit:${input.ip}:${input.actorUserId}`,
     10,
     WINDOW_MS
   )
@@ -126,7 +133,7 @@ export async function commitEmailChange(input: {
       error: '試行回数が多すぎます。しばらくしてから再試行してください'
     }
   }
-  if (!(await consumeEmailChangeReauth(input.adminUserId))) {
+  if (!(await consumeEmailChangeReauth(input.actorUserId))) {
     return { ok: false, status: 403, error: 'メールアドレスの確定には再認証が必要です' }
   }
 
@@ -138,6 +145,9 @@ export async function commitEmailChange(input: {
   const user = await UserDB.findById(input.targetUserId)
   if (!user) {
     return { ok: false, status: 404, error: 'ユーザーが見つかりません' }
+  }
+  if (!canChangeUserEmail(input.actorRole, user.role)) {
+    return { ok: false, status: 403, error: 'このユーザーのメールアドレスは変更できません' }
   }
 
   const taken = await UserDB.findByEmail(pending.email)
@@ -176,6 +186,6 @@ export async function commitEmailChange(input: {
   return {
     ok: true,
     email: pending.email,
-    selfRevoked: input.adminUserId === user.id
+    selfRevoked: input.actorUserId === user.id
   }
 }

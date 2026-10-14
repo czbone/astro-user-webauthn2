@@ -24,7 +24,7 @@ admin.use('/users/*', requireUserManager)
 admin.use('/stats/*', requireAdmin)
 admin.use('/apps/*', requireAdmin)
 admin.use('/grants/*', requireAdmin)
-admin.use('/email-changes/*', requireAdmin)
+admin.use('/email-changes/*', requireUserManager)
 admin.use('*', slideSessionAfterAuth)
 
 admin.get('/stats', async (c) => {

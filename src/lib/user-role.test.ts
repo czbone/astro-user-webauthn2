@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   assignableRoles,
+  canChangeUserEmail,
   canManageUsers,
   homePathForRole,
   parseUserRole,
@@ -26,6 +27,16 @@ describe('user role', () => {
     expect(canManageUsers('admin')).toBe(true)
     expect(canManageUsers('manager')).toBe(true)
     expect(canManageUsers('user')).toBe(false)
+  })
+
+  it('lets admin change every role and managers change user or manager', () => {
+    expect(canChangeUserEmail('admin', 'admin')).toBe(true)
+    expect(canChangeUserEmail('admin', 'manager')).toBe(true)
+    expect(canChangeUserEmail('admin', 'user')).toBe(true)
+    expect(canChangeUserEmail('manager', 'user')).toBe(true)
+    expect(canChangeUserEmail('manager', 'manager')).toBe(true)
+    expect(canChangeUserEmail('manager', 'admin')).toBe(false)
+    expect(canChangeUserEmail('user', 'user')).toBe(false)
   })
 
   it('limits who can be invited', () => {

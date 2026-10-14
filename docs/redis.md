@@ -95,7 +95,7 @@
 
 固定ウィンドウ方式。
 
-- キー例: `rl:pwd:{ip}:{email}`, `rl:method:{ip}:{email}`, `rl:reset:{ip}:{email}`, `rl:magic:{ip}`, `rl:magic-resend:{ip}:{email}`, `rl:emailchg:{ip}:{userId}`, `rl:emailchg-verify:{ip}`, `rl:emailchg-commit:{ip}:{adminUserId}`
+- キー例: `rl:pwd:{ip}:{email}`, `rl:method:{ip}:{email}`, `rl:reset:{ip}:{email}`, `rl:magic:{ip}`, `rl:magic-resend:{ip}:{email}`, `rl:emailchg:{ip}:{userId}`, `rl:emailchg-verify:{ip}`, `rl:emailchg-commit:{ip}:{actorUserId}`
 - `INCR`。カウンタが 1 のときだけ `PEXPIRE` でウィンドウのミリ秒を設定
 - 制限値（現行どおり）:
   - password: 10 / 15 分

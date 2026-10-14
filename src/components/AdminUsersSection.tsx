@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import AdminEmailChangeSection from '@/components/AdminEmailChangeSection'
 import AdminFetch from '@/api-client/admin'
-import { assignableRoles, isUserRole, roleLabel } from '@/lib/user-role'
+import {
+  assignableRoles,
+  canChangeUserEmail,
+  canManageUsers,
+  isUserRole,
+  roleLabel
+} from '@/lib/user-role'
 import type { UserRole } from '@/types/models'
 
 type UserRow = {
@@ -101,7 +107,12 @@ export default function AdminUsersSection({ actorRole }: { actorRole: UserRole }
         </button>
       </form>
 
-      {actorRole === 'admin' && <AdminEmailChangeSection users={users} onChanged={load} />}
+      {canManageUsers(actorRole) && (
+        <AdminEmailChangeSection
+          users={users.filter((user) => canChangeUserEmail(actorRole, user.role))}
+          onChanged={load}
+        />
+      )}
 
       <div className="rounded-lg bg-white p-6 shadow">
         <h2 className="mb-4 text-xl font-semibold text-gray-900">ユーザー一覧</h2>

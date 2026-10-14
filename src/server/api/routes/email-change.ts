@@ -1,15 +1,16 @@
 import { Hono } from 'hono'
 import type { AuthenticationResponseJSON } from '@simplewebauthn/server'
+import { canChangeUserEmail } from '@/lib/user-role'
 import { commitEmailChange, requestEmailChange } from '@/server/auth/email-change'
 import { clearSessionCookieOnContext } from '@/server/auth/cookie'
 import { createEmailChangeReauthOptions, verifyEmailChangeReauth } from '@/server/auth/webauthn'
-import { EmailChangeDB } from '@/server/db'
-import { requireAdmin } from '@/server/middleware/auth'
+import { EmailChangeDB, UserDB } from '@/server/db'
+import { requireUserManager } from '@/server/middleware/auth'
 import type { AppVariables } from '@/server/middleware/types'
 
 const emailChanges = new Hono<{ Variables: AppVariables }>()
 
-emailChanges.use('*', requireAdmin)
+emailChanges.use('*', requireUserManager)
 
 function clientIp(header: string | undefined): string {
   return header || 'local'
@@ -17,14 +18,21 @@ function clientIp(header: string | undefined): string {
 
 emailChanges.get('/', async (c) => {
   try {
+    const actorRole = c.get('user').role
     const pending = await EmailChangeDB.list()
+    const targets = await Promise.all(pending.map((record) => UserDB.findById(record.userId)))
     return c.json(
-      pending.map((record) => ({
-        userId: record.userId,
-        email: record.email,
-        createdAt: record.createdAt,
-        verifiedAt: record.verifiedAt
-      })),
+      pending
+        .filter((_, index) => {
+          const target = targets[index]
+          return target != null && canChangeUserEmail(actorRole, target.role)
+        })
+        .map((record) => ({
+          userId: record.userId,
+          email: record.email,
+          createdAt: record.createdAt,
+          verifiedAt: record.verifiedAt
+        })),
       200
     )
   } catch (error) {
@@ -37,6 +45,7 @@ emailChanges.post('/', async (c) => {
   try {
     const body = await c.req.json()
     const result = await requestEmailChange({
+      actorRole: c.get('user').role,
       userId: String(body.userId || ''),
       email: body.email,
       ip: clientIp(c.req.header('x-forwarded-for'))
@@ -79,7 +88,8 @@ emailChanges.post('/reauth/verify', async (c) => {
 emailChanges.post('/:userId/commit', async (c) => {
   try {
     const result = await commitEmailChange({
-      adminUserId: c.get('user').id,
+      actorRole: c.get('user').role,
+      actorUserId: c.get('user').id,
       targetUserId: c.req.param('userId'),
       ip: clientIp(c.req.header('x-forwarded-for'))
     })

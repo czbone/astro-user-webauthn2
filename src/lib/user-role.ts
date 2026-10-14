@@ -38,6 +38,10 @@ export function assignableRoles(actor: UserRole): readonly UserRole[] {
   return ASSIGNABLE_ROLES[actor]
 }
 
+export function canChangeUserEmail(actor: UserRole, targetRole: string): boolean {
+  return isUserRole(targetRole) && assignableRoles(actor).includes(targetRole)
+}
+
 export function resolveInviteRole(
   actor: UserRole,
   requested: unknown

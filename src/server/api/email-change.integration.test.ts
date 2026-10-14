@@ -18,6 +18,17 @@ import {
   sessionCookieHeader
 } from '@/test/db'
 
+async function managerCookie() {
+  const { user } = await createTestUser({
+    role: 'manager',
+    email: 'manager@example.com',
+    name: 'Manager User'
+  })
+  await insertPasskeyFixture(user.id)
+  const { token } = await createSession(user.id)
+  return { user, cookie: sessionCookieHeader(token) }
+}
+
 async function adminCookie() {
   const { user } = await createTestUser({
     role: 'admin',
@@ -50,8 +61,8 @@ describe('email change integration', () => {
     vi.clearAllMocks()
   })
 
-  it('rejects managers', async () => {
-    const { user } = await createTestUser({ role: 'manager', email: 'manager@example.com' })
+  it('rejects users who cannot manage accounts', async () => {
+    const { user } = await createTestUser({ role: 'user', email: 'plain@example.com' })
     await insertPasskeyFixture(user.id)
     const { token } = await createSession(user.id)
 
@@ -60,7 +71,7 @@ describe('email change integration', () => {
     })
 
     expect(res.status).toBe(403)
-    await expect(res.json()).resolves.toMatchObject({ error: '管理者権限が必要です' })
+    await expect(res.json()).resolves.toMatchObject({ error: 'ユーザー管理の権限が必要です' })
   })
 
   it('sends a confirmation mail without changing the address or sessions', async () => {
@@ -282,4 +293,118 @@ describe('email change integration', () => {
       name: 'Admin User'
     })
   })
+
+  it('lets a manager change a user and hides admin changes from that manager', async () => {
+    const { cookie: managerSession, user: manager } = await managerCookie()
+    const { cookie: adminSession, user: admin } = await adminCookie()
+    const { user } = await createTestUser({ email: 'member@example.com', name: 'Member' })
+
+    expect((await requestChange(managerSession, admin.id, 'admin-next@example.com')).status).toBe(
+      403
+    )
+    expect((await requestChange(managerSession, user.id, 'member-next@example.com')).status).toBe(
+      200
+    )
+    expect((await requestChange(adminSession, admin.id, 'admin-next@example.com')).status).toBe(200)
+
+    const managerList = await app.request('/admin/email-changes', {
+      headers: { Cookie: managerSession }
+    })
+    expect(managerList.status).toBe(200)
+    const managerBody = (await managerList.json()) as { userId: string }[]
+    expect(managerBody.map((item) => item.userId)).toEqual([user.id])
+
+    const adminList = await app.request('/admin/email-changes', {
+      headers: { Cookie: adminSession }
+    })
+    const adminBody = (await adminList.json()) as { userId: string }[]
+    expect(adminBody.map((item) => item.userId).sort()).toEqual([admin.id, user.id].sort())
+
+    const memberVerify = await app.request('/auth/email-change/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: requestTokenFromCall(0) })
+    })
+    const adminVerify = await app.request('/auth/email-change/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: requestTokenFromCall(1) })
+    })
+    expect(memberVerify.status).toBe(200)
+    expect(adminVerify.status).toBe(200)
+
+    await saveChallenge('emailchg-reauth-ok', '1', manager.id)
+    const blocked = await app.request(`/admin/email-changes/${admin.id}/commit`, {
+      method: 'POST',
+      headers: { Cookie: managerSession, 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+    expect(blocked.status).toBe(403)
+    expect((await prisma.user.findUnique({ where: { id: admin.id } }))?.email).toBe(
+      'admin@example.com'
+    )
+    expect((await EmailChangeDB.findForUser(admin.id))?.email).toBe('admin-next@example.com')
+
+    await saveChallenge('emailchg-reauth-ok', '1', manager.id)
+    const commit = await app.request(`/admin/email-changes/${user.id}/commit`, {
+      method: 'POST',
+      headers: { Cookie: managerSession, 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+    expect(commit.status).toBe(200)
+    expect((await prisma.user.findUnique({ where: { id: user.id } }))?.email).toBe(
+      'member-next@example.com'
+    )
+  })
+
+  it('rejects a manager commit after the target becomes admin', async () => {
+    const { cookie, user: manager } = await managerCookie()
+    const { user } = await createTestUser({ email: 'member@example.com', name: 'Member' })
+    expect((await requestChange(cookie, user.id, 'member-next@example.com')).status).toBe(200)
+    const verify = await app.request('/auth/email-change/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: requestToken() })
+    })
+    expect(verify.status).toBe(200)
+    await prisma.user.update({ where: { id: user.id }, data: { role: 'admin' } })
+
+    const hidden = await app.request('/admin/email-changes', { headers: { Cookie: cookie } })
+    await expect(hidden.json()).resolves.toEqual([])
+
+    await saveChallenge('emailchg-reauth-ok', '1', manager.id)
+    const commit = await app.request(`/admin/email-changes/${user.id}/commit`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+    expect(commit.status).toBe(403)
+    expect((await prisma.user.findUnique({ where: { id: user.id } }))?.email).toBe(
+      'member@example.com'
+    )
+    expect((await EmailChangeDB.findForUser(user.id))?.email).toBe('member-next@example.com')
+
+    const { cookie: adminSession, user: admin } = await adminCookie()
+    const visible = await app.request('/admin/email-changes', {
+      headers: { Cookie: adminSession }
+    })
+    const visibleBody = (await visible.json()) as { userId: string }[]
+    expect(visibleBody.map((item) => item.userId)).toEqual([user.id])
+    await saveChallenge('emailchg-reauth-ok', '1', admin.id)
+    const adminCommit = await app.request(`/admin/email-changes/${user.id}/commit`, {
+      method: 'POST',
+      headers: { Cookie: adminSession, 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+    expect(adminCommit.status).toBe(200)
+    expect((await prisma.user.findUnique({ where: { id: user.id } }))?.email).toBe(
+      'member-next@example.com'
+    )
+  })
 })
+
+function requestTokenFromCall(index: number): string {
+  const token = vi.mocked(sendEmailChangeRequestMail).mock.calls[index]?.[0]?.token
+  if (!token) throw new Error('確認メールが送信されていません')
+  return token
+}
