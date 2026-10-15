@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { prisma } from '@/lib/prisma'
+import { redis } from '@/lib/redis'
 import app from '@/server/api/app'
 import { saveChallenge } from '@/server/auth/challenges'
 import { sendDeviceInviteMail } from '@/server/auth/mail'
@@ -6,7 +8,9 @@ import { createSession } from '@/server/auth/session'
 import { generateToken, hashToken } from '@/server/auth/tokens'
 import * as webauthn from '@/server/auth/webauthn'
 import { DEVICE_INVITE_TTL_MS } from '@/server/auth/env'
+import CredentialDB from '@/server/db/credential'
 import InviteDB from '@/server/db/invite'
+import { RedisKeys } from '@/server/redis/keys'
 import { createTestUser, insertPasskeyFixture, resetDatabase, sessionCookieHeader } from '@/test/db'
 
 async function passkeyUserCookie(input?: { email?: string }) {
@@ -345,6 +349,46 @@ describe('devices integration', () => {
     expect(res.status).toBe(400)
     await expect(res.json()).resolves.toEqual({ error: '同じデバイス名は既に登録されています' })
     expect(spy).not.toHaveBeenCalled()
+    expect(await InviteDB.findValidByTokenHash(tokenHash)).not.toBeNull()
+  })
+
+  it('rejects device registration for a disabled account', async () => {
+    const { user } = await createTestUser()
+    await insertPasskeyFixture(user.id)
+    await prisma.user.update({ where: { id: user.id }, data: { disabledAt: new Date() } })
+    const token = generateToken()
+    const tokenHash = hashToken(token)
+    await InviteDB.create(user.id, tokenHash, new Date(Date.now() + DEVICE_INVITE_TTL_MS))
+    const spy = vi.spyOn(webauthn, 'verifyRegistration')
+
+    const options = await app.request('/devices/register/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    })
+    expect(options.status).toBe(403)
+    await expect(options.json()).resolves.toEqual({ error: 'このアカウントは無効です' })
+    expect(await redis.exists(RedisKeys.challenge('reg', user.id))).toBe(0)
+
+    const verify = await app.request('/devices/register/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        response: {
+          id: 'fake',
+          rawId: 'fake',
+          response: {},
+          type: 'public-key',
+          clientExtensionResults: {}
+        },
+        deviceName: 'Laptop'
+      })
+    })
+    expect(verify.status).toBe(403)
+    await expect(verify.json()).resolves.toEqual({ error: 'このアカウントは無効です' })
+    expect(spy).not.toHaveBeenCalled()
+    expect(await CredentialDB.countForUser(user.id)).toBe(1)
     expect(await InviteDB.findValidByTokenHash(tokenHash)).not.toBeNull()
   })
 

@@ -52,7 +52,7 @@ describe('handoff', () => {
       }
     })
     await prisma.appGrant.create({
-      data: { userId: user.id, appId: 'posts', permission: 'user' }
+      data: { userId: user.id, appId: 'posts', permission: 'allow' }
     })
 
     const res = await handoffApp.request(
@@ -89,7 +89,7 @@ describe('handoff', () => {
       }
     })
     await prisma.appGrant.create({
-      data: { userId: user.id, appId: 'posts', permission: 'user' }
+      data: { userId: user.id, appId: 'posts', permission: 'allow' }
     })
 
     const res = await handoffApp.request(
@@ -134,7 +134,7 @@ describe('handoff', () => {
         name: '参加アプリ',
         origin: target.origin,
         redirectUris: [target.redirectUri],
-        defaultPermission: 'user'
+        defaultPermission: 'allow'
       }
     })
 
@@ -156,7 +156,7 @@ describe('handoff', () => {
         name: '参加アプリ',
         origin: target.origin,
         redirectUris: [target.redirectUri],
-        defaultPermission: 'user'
+        defaultPermission: 'allow'
       }
     })
     await prisma.appGrant.create({

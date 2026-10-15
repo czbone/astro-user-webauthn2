@@ -15,6 +15,7 @@ type UserRow = {
   email: string
   name: string
   role: string
+  disabledAt: string | null
   createdAt: string
   credentialCount: number
 }
@@ -123,6 +124,7 @@ export default function AdminUsersSection({ actorRole }: { actorRole: UserRole }
                 <th className="py-2 pr-4">名前</th>
                 <th className="py-2 pr-4">メール</th>
                 <th className="py-2 pr-4">ロール</th>
+                <th className="py-2 pr-4">状態</th>
                 <th className="py-2">パスキー</th>
               </tr>
             </thead>
@@ -132,7 +134,22 @@ export default function AdminUsersSection({ actorRole }: { actorRole: UserRole }
                   <td className="py-2 pr-4">{user.name}</td>
                   <td className="py-2 pr-4">{user.email}</td>
                   <td className="py-2 pr-4">
-                    {isUserRole(user.role) ? roleLabel(user.role) : user.role}
+                    {actorRole === 'admin' ? (
+                      <UserRoleEditor user={user} onChanged={load} />
+                    ) : isUserRole(user.role) ? (
+                      roleLabel(user.role)
+                    ) : (
+                      user.role
+                    )}
+                  </td>
+                  <td className="py-2 pr-4">
+                    {actorRole === 'admin' ? (
+                      <UserDisabledEditor user={user} onChanged={load} />
+                    ) : user.disabledAt ? (
+                      '無効'
+                    ) : (
+                      '有効'
+                    )}
                   </td>
                   <td className="py-2">{user.credentialCount}</td>
                 </tr>
@@ -141,6 +158,98 @@ export default function AdminUsersSection({ actorRole }: { actorRole: UserRole }
           </table>
         </div>
       </div>
+    </div>
+  )
+}
+
+function UserRoleEditor({ user, onChanged }: { user: UserRow; onChanged: () => Promise<void> }) {
+  const [role, setRole] = useState<UserRole>(isUserRole(user.role) ? user.role : 'user')
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (isUserRole(user.role)) setRole(user.role)
+  }, [user.role])
+
+  async function changeRole() {
+    if (role === user.role) return
+    if (!confirm(`${user.name} のロールを${roleLabel(role)}に変更します`)) return
+    setLoading(true)
+    try {
+      const result = await AdminFetch.updateUserRole(user.id, role)
+      if (!result || !result.response.ok) {
+        alert(result?.data?.error || 'ロールの変更に失敗しました')
+        if (isUserRole(user.role)) setRole(user.role)
+        return
+      }
+      await onChanged()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        value={role}
+        onChange={(e) => setRole(e.target.value as UserRole)}
+        className="rounded border border-gray-300 px-2 py-1"
+      >
+        {assignableRoles('admin').map((value) => (
+          <option key={value} value={value}>
+            {roleLabel(value)}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        disabled={loading || role === user.role}
+        onClick={() => void changeRole()}
+        className="rounded bg-gray-800 px-3 py-1 text-white hover:bg-gray-700 disabled:opacity-50"
+      >
+        変更
+      </button>
+    </div>
+  )
+}
+
+function UserDisabledEditor({
+  user,
+  onChanged
+}: {
+  user: UserRow
+  onChanged: () => Promise<void>
+}) {
+  const [loading, setLoading] = useState(false)
+  const disabled = Boolean(user.disabledAt)
+
+  async function toggle() {
+    const next = !disabled
+    const message = next ? `${user.name} を無効化します` : `${user.name} を再有効化します`
+    if (!confirm(message)) return
+    setLoading(true)
+    try {
+      const result = await AdminFetch.setUserDisabled(user.id, next)
+      if (!result || !result.response.ok) {
+        alert(result?.data?.error || 'アカウント状態の変更に失敗しました')
+        return
+      }
+      await onChanged()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span>{disabled ? '無効' : '有効'}</span>
+      <button
+        type="button"
+        disabled={loading}
+        onClick={() => void toggle()}
+        className="rounded border border-gray-400 px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
+      >
+        {disabled ? '再有効化' : '無効化'}
+      </button>
     </div>
   )
 }

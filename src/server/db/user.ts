@@ -51,6 +51,7 @@ class UserDB {
       email: user.email,
       name: user.name,
       role: user.role,
+      disabledAt: user.disabledAt,
       createdAt: user.createdAt,
       credentialCount: user._count.credentials
     }))
@@ -61,7 +62,7 @@ class UserDB {
   }
 
   async countAdmins() {
-    return prisma.user.count({ where: { role: 'admin' } })
+    return prisma.user.count({ where: { role: 'admin', disabledAt: null } })
   }
 }
 

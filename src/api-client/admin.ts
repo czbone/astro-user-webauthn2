@@ -74,6 +74,24 @@ class AdminFetch {
     }
   }
 
+  async updateUserRole(id: string, role: UserRole) {
+    const res = await apiFetch(`/admin/users/${encodeURIComponent(id)}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role })
+    })
+    if (!res) return null
+    return { response: res, data: await readJson<{ error?: string }>(res) }
+  }
+
+  async setUserDisabled(id: string, disabled: boolean) {
+    const res = await apiFetch(`/admin/users/${encodeURIComponent(id)}/disabled`, {
+      method: 'PATCH',
+      body: JSON.stringify({ disabled })
+    })
+    if (!res) return null
+    return { response: res, data: await readJson<{ error?: string }>(res) }
+  }
+
   async createUser(input: { email: string; name: string; role: UserRole }) {
     const res = await apiFetch('/admin/users', {
       method: 'POST',
@@ -94,7 +112,7 @@ class AdminFetch {
     name: string
     origin: string
     redirectUris: string[]
-    defaultPermission: 'admin' | 'user' | null
+    defaultPermission: 'allow' | null
   }) {
     const res = await apiFetch('/admin/apps', {
       method: 'POST',
@@ -106,7 +124,7 @@ class AdminFetch {
 
   async updateApp(
     id: string,
-    input: { name: string; redirectUris: string[]; defaultPermission?: 'admin' | 'user' | null }
+    input: { name: string; redirectUris: string[]; defaultPermission?: 'allow' | null }
   ) {
     const res = await apiFetch(`/admin/apps/${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -128,7 +146,7 @@ class AdminFetch {
     return { response: res, data: await readJson<unknown>(res) }
   }
 
-  async saveGrant(input: { userId: string; appId: string; permission: 'admin' | 'user' | 'none' }) {
+  async saveGrant(input: { userId: string; appId: string; permission: 'allow' | 'none' }) {
     const res = await apiFetch('/admin/grants', {
       method: 'PUT',
       body: JSON.stringify(input)

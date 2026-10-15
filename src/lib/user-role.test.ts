@@ -41,13 +41,18 @@ describe('user role', () => {
 
   it('limits who can be invited', () => {
     expect(assignableRoles('admin')).toEqual(['user', 'manager', 'admin'])
-    expect(assignableRoles('manager')).toEqual(['user', 'manager'])
+    expect(assignableRoles('manager')).toEqual(['user'])
     expect(assignableRoles('user')).toEqual([])
   })
 
   it('defaults an omitted invite role to user and rejects anything else', () => {
     expect(resolveInviteRole('manager', undefined)).toEqual({ ok: true, role: 'user' })
     expect(resolveInviteRole('admin', 'manager')).toEqual({ ok: true, role: 'manager' })
+    expect(resolveInviteRole('manager', 'manager')).toEqual({
+      ok: false,
+      status: 403,
+      error: 'このロールは指定できません'
+    })
     expect(resolveInviteRole('manager', 'admin')).toEqual({
       ok: false,
       status: 403,

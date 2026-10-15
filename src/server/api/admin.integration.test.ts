@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '@/server/api/app'
 import { authEnv } from '@/server/auth/env'
 import { sendUserInviteMail } from '@/server/auth/mail'
-import { createSession } from '@/server/auth/session'
+import { createSession, createSessionForApp } from '@/server/auth/session'
 import { prisma } from '@/lib/prisma'
+import SessionDB from '@/server/db/session'
 import { createTestUser, insertPasskeyFixture, resetDatabase, sessionCookieHeader } from '@/test/db'
 
 async function ensureAuthApp() {
@@ -205,7 +206,7 @@ describe('admin integration', () => {
     await expect(res.json()).resolves.toMatchObject({ role: 'manager' })
   })
 
-  it('lets a manager list users and invite user or manager', async () => {
+  it('lets a manager list users and invite only a user', async () => {
     const { cookie } = await managerCookie()
 
     const listRes = await app.request('/admin/users', {
@@ -240,8 +241,10 @@ describe('admin integration', () => {
         role: 'manager'
       })
     })
-    expect(managerRes.status).toBe(201)
-    await expect(managerRes.json()).resolves.toMatchObject({ role: 'manager' })
+    expect(managerRes.status).toBe(403)
+    await expect(managerRes.json()).resolves.toMatchObject({
+      error: 'このロールは指定できません'
+    })
   })
 
   it('rejects a manager inviting an admin', async () => {
@@ -434,13 +437,13 @@ describe('admin integration', () => {
         name: '参加アプリ',
         origin,
         redirectUris: [`${origin}/callback`],
-        defaultPermission: 'user'
+        defaultPermission: 'allow'
       })
     })
     expect(created.status).toBe(201)
     await expect(created.json()).resolves.toMatchObject({
       id: 'board',
-      defaultPermission: 'user',
+      defaultPermission: 'allow',
       isAuthServer: false
     })
 
@@ -462,7 +465,7 @@ describe('admin integration', () => {
     expect(kept.status).toBe(200)
     await expect(kept.json()).resolves.toMatchObject({
       name: '参加アプリ改',
-      defaultPermission: 'user'
+      defaultPermission: 'allow'
     })
 
     const authUpdate = await app.request(`/admin/apps/${authEnv.appId()}`, {
@@ -519,7 +522,7 @@ describe('admin integration', () => {
       body: JSON.stringify({
         userId: user.id,
         appId: authEnv.appId(),
-        permission: 'user'
+        permission: 'allow'
       })
     })
     expect(rejected.status).toBe(400)
@@ -544,7 +547,7 @@ describe('admin integration', () => {
     })
 
     await prisma.appGrant.create({
-      data: { userId: user.id, appId: authEnv.appId(), permission: 'admin' }
+      data: { userId: user.id, appId: authEnv.appId(), permission: 'allow' }
     })
     const listed = await app.request('/admin/grants', { headers: { Cookie: cookie } })
     const grants = (await listed.json()) as Array<{ appId: string; permission: string }>
@@ -556,5 +559,166 @@ describe('admin integration', () => {
     })
     expect(deleted.status).toBe(200)
     expect(await prisma.appGrant.count({ where: { appId: 'board' } })).toBe(0)
+  })
+
+  it('changes a common role and records the change', async () => {
+    const { cookie, user: admin } = await adminCookie()
+    const { user } = await createTestUser({ email: 'member@example.com', role: 'user' })
+
+    const res = await app.request(`/admin/users/${user.id}/role`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ role: 'manager' })
+    })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ id: user.id, role: 'manager' })
+    await expect(
+      prisma.roleChange.findFirst({ where: { targetId: user.id } })
+    ).resolves.toMatchObject({
+      actorId: admin.id,
+      fromRole: 'user',
+      toRole: 'manager',
+      success: true,
+      reason: null
+    })
+  })
+
+  it('rejects demoting or disabling the last active admin and keeps a failure record for demotion', async () => {
+    const { cookie, user } = await adminCookie()
+
+    const demote = await app.request(`/admin/users/${user.id}/role`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ role: 'user' })
+    })
+    expect(demote.status).toBe(409)
+    await expect(demote.json()).resolves.toMatchObject({
+      error: '最後の管理者は降格できません'
+    })
+    expect(await prisma.user.findUnique({ where: { id: user.id } })).toMatchObject({
+      role: 'admin'
+    })
+    await expect(
+      prisma.roleChange.findFirst({ where: { targetId: user.id } })
+    ).resolves.toMatchObject({
+      fromRole: 'admin',
+      toRole: 'user',
+      success: false,
+      reason: '最後の管理者は降格できません'
+    })
+
+    const disable = await app.request(`/admin/users/${user.id}/disabled`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ disabled: true })
+    })
+    expect(disable.status).toBe(409)
+    await expect(disable.json()).resolves.toMatchObject({
+      error: '最後の管理者は無効化できません'
+    })
+    expect((await prisma.user.findUnique({ where: { id: user.id } }))?.disabledAt).toBeNull()
+  })
+
+  it('lets a second admin demote and disable, and rejects a manager', async () => {
+    const { cookie, user: admin } = await adminCookie()
+    const { user: other } = await createTestUser({
+      email: 'other-admin@example.com',
+      role: 'admin'
+    })
+    await insertPasskeyFixture(other.id)
+    const { token } = await createSession(other.id)
+
+    const demote = await app.request(`/admin/users/${other.id}/role`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ role: 'user' })
+    })
+    expect(demote.status).toBe(200)
+
+    const promoted = await app.request(`/admin/users/${other.id}/role`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ role: 'admin' })
+    })
+    expect(promoted.status).toBe(200)
+
+    const disable = await app.request(`/admin/users/${other.id}/disabled`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ disabled: true })
+    })
+    expect(disable.status).toBe(200)
+    expect(await SessionDB.countForUser(other.id)).toBe(0)
+    const me = await app.request('/auth/me', {
+      headers: { Cookie: sessionCookieHeader(token) }
+    })
+    await expect(me.json()).resolves.toEqual({ user: null })
+
+    const stats = await app.request('/admin/stats', { headers: { Cookie: cookie } })
+    await expect(stats.json()).resolves.toMatchObject({ adminCount: 1 })
+
+    const { cookie: manager } = await managerCookie()
+    const forbidden = await app.request(`/admin/users/${admin.id}/role`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: manager,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ role: 'user' })
+    })
+    expect(forbidden.status).toBe(403)
+    expect(await prisma.roleChange.count({ where: { actorId: { not: admin.id } } })).toBe(0)
+  })
+
+  it('revokes sessions again when disabling an already disabled user', async () => {
+    const { cookie } = await adminCookie()
+    const { user } = await createTestUser({ email: 'disabled-retry@example.com' })
+    await insertPasskeyFixture(user.id)
+    await createSession(user.id)
+
+    const first = await app.request(`/admin/users/${user.id}/disabled`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ disabled: true })
+    })
+    expect(first.status).toBe(200)
+    expect(await SessionDB.countForUser(user.id)).toBe(0)
+
+    await createSession(user.id)
+    await createSessionForApp('participant-app', user.id)
+    expect(await SessionDB.countForUser(user.id)).toBe(2)
+
+    const second = await app.request(`/admin/users/${user.id}/disabled`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ disabled: true })
+    })
+    expect(second.status).toBe(200)
+    expect(await SessionDB.countForUser(user.id)).toBe(0)
   })
 })

@@ -17,7 +17,7 @@
 | リクエストごとにセッション、パスキー有無、`AppGrant` を確認する | `App` / `AppGrant` の作成・更新・削除 |
 | 自分のログアウト | 他アプリのセッション削除、認証サーバーのログアウト |
 
-パスキーの登録が終わるまで、認証サーバーは引き渡しを発行しません。参加アプリにセッションが届くのは、Credential が 1 件以上あり、このアプリの `AppGrant` があるユーザーだけです。その後にパスキーが消えた、または付与が外れた場合は、セクション 3 で扱います。
+パスキーの登録が終わるまで、認証サーバーは引き渡しを発行しません。参加アプリにセッションが届くのは、Credential が 1 件以上あり、実効許可が `allow` のユーザーだけです。その後にパスキーが消えた、無効化された、または付与が外れた場合は、セクション 3 で扱います。
 
 ## 2. 画面
 
@@ -25,15 +25,15 @@
 
 | パス | 条件 | 内容 |
 |------|------|------|
-| `/` | `permission` が `admin` または `user` | 自分の email、name、permission。ログアウトのフォーム |
-| `/grants` | `permission` が `admin` | このアプリの `AppGrant` 一覧。列は email、name、permission。並びは email の昇順。変更操作は置かない |
-| `/grants` | `permission` が `user` | 403「この画面を利用する権限がありません」。`/` へのリンクを出す |
+| `/` | 実効許可が `allow` | 自分の email、name、共通ロール。ログアウトのフォーム |
+| `/roles` | 共通ロールが `admin` または `manager` | このアプリのアプリ内ロールの割り当て・変更・解除。業務権限は付かない |
+| `/roles` | 共通ロールが `user` | 403「この画面を利用する権限がありません」。`/` へのリンクを出す |
 | `/callback` | 引き渡しの戻り | セクション 5。成功時は保存したパスへ 303 |
 | `/logged-out` | セッション不要 | 「ログアウトしました」。再入場は `/` へのリンクだけ。このページから引き渡しを開始しない |
 | 上記以外の画面 | セッションが無い | セクション 4 の引き渡しを開始する |
 | 付与が無い | セッションはある | 403「このアプリを利用する権限がありません」。ログアウトだけできる。TTL は延ばさない |
 
-permission の表示は、`admin` を「管理者」、`user` を「利用者」とします。
+共通ロールの表示は、`admin` を「管理者」、`manager` を「ユーザー管理者」、`user` を「一般ユーザー」とします。利用許可の表示は「利用可」です。
 
 `/callback` と `/logged-out` は、セッションが無くても引き渡しを開始しません。コードが無い `/callback` は 400「引き渡しに失敗しました」です。
 
@@ -53,9 +53,9 @@ GET sess:{APP_ID}:{tokenHash}
 無し、JSON でない、値の appId が APP_ID と違う
   → Cookie を削除。キーがあるときは DEL。userId があれば索引から SREM。未認証
   ↓
-User を id で取得（id, email, name だけ）
+User を id で取得（id, email, name, role, disabledAt）
   ↓
-行が無い → セッションを DEL し、索引から SREM し、Cookie を削除。未認証
+行が無い、または disabledAt がある → セッションを DEL し、索引から SREM し、Cookie を削除。未認証
   ↓
 WebAuthnCredential の件数
   ↓
@@ -63,25 +63,25 @@ WebAuthnCredential の件数
         画面は AUTH_ORIGIN/setup-passkey へ 302
         更新は 403「先にパスキーを登録してください」
   ↓
-AppGrant（userId, APP_ID）
+実効許可（defaultPermission と AppGrant）
   ↓
-行が無い、または permission が admin / user 以外
+allow 以外
   → 403「このアプリを利用する権限がありません」
     Cookie は残す。TTL も Cookie の Max-Age も延ばさない
     ログアウトだけ通す
   ↓
 EXPIRE sess:{APP_ID}:{tokenHash} と Cookie の Max-Age を更新
   ↓
-permission で画面を分ける
+共通ロールとアプリ内ロールで画面を分ける
 ```
 
 未認証の画面はセクション 4 へ進みます。未認証の更新は 401「ログインが必要です」とし、引き渡しへは送りません。
 
-`User.role` は読みません。認証サーバー上の権限であり、参加アプリの画面権限には使いません。`User.password`、パスキーの公開鍵、カウンタ、`credentialId`、`transports` も読みません。
+入場の可否に `User.role` は使いません。入場後、管理操作は共通 `admin`、アプリ内ロールの割り当て・変更・解除は共通 `admin` または `manager` で判定します。`manager` だけでは業務操作はできません。業務操作は、このアプリが `User.id` に持つアプリ内ロールで判定します。クライアントが送ったロール名は使いません。`User.password`、パスキーの公開鍵、カウンタ、`credentialId`、`transports` は読みません。
 
 付与を外した効果は、次のリクエストから効きます。セッションの作り直しは要りません。`permission` の変更も同じです。変更できるのは認証サーバーの管理画面だけです。
 
-`/grants` の拒否は、上の流れで付与が有効だったあとに行います。`user` が `/grants` を開いたときも、セッションの TTL は延ばします。
+`/roles` の拒否は、上の流れで利用許可が有効だったあとに行います。共通ロールが `user` のときも、セッションの TTL は延ばします。
 
 GET と HEAD は状態を変えません。ただしセクション 6 の成功時の `EXPIRE` と、失効した Cookie の削除は行います。POST、PUT、PATCH、DELETE は、`Origin` が `APP_ORIGIN` と完全一致するときだけ処理します。`Origin` が無い、または一致しない更新は 403「オリジンが不正です」です。他オリジン向けの `Access-Control-Allow-Credentials` は返しません。
 
@@ -90,32 +90,22 @@ GET と HEAD は状態を変えません。ただしセクション 6 の成功�
 接続ロールはセクション 10 の列権限だけを持ちます。
 
 ```sql
-SELECT id, email, name FROM "User" WHERE id = $1
+SELECT id, email, name, role, "disabledAt" FROM "User" WHERE id = $1
 
 SELECT COUNT(id) FROM "WebAuthnCredential" WHERE "userId" = $1
 
-SELECT permission FROM "AppGrant" WHERE "userId" = $1 AND "appId" = $2
+SELECT "defaultPermission" FROM "App" WHERE id = $1
 
-SELECT u.email, u.name, g.permission
-FROM "AppGrant" g
-JOIN "User" u ON u.id = g."userId"
-WHERE g."appId" = $1
-ORDER BY u.email ASC
+SELECT permission FROM "AppGrant" WHERE "userId" = $1 AND "appId" = $2
 ```
 
-最後の一覧は、解決済みの `permission` が `admin` のときだけ実行します。
+実効許可は [app-permissions/grant.md](./app-permissions/grant.md) の手順です。アプリ内ロールは、このアプリのテーブルを `User.id` で読みます。認証サーバーの `AppGrant` には業務ロールを書きません。
 
 ### 業務テーブルを後から足すとき
 
 テーブルは参加アプリの所有です。共有の `User` や `Post` には書きません。入場条件は本セクションのままです。
 
-閲覧範囲は `AppGrant.permission` で分けます。認証サーバーの投稿と同じです。
-
-- `user` は、公開された行と、自分の行を読む
-- `admin` は、他者の非公開行も含めて読む
-- 書き込みは、`admin` でも本人の行だけ
-
-判定に `User.role` は使いません。本ファイルでは投稿機能は移しません。
+業務の閲覧と書き込みは、アプリ内ロールで分けます。共通 `admin` の管理操作と、共通 `manager` のロール管理は、その業務ロールとは別に許可します。本ファイルでは投稿機能は移しません。
 
 ## 4. 引き渡しの開始
 
@@ -159,7 +149,7 @@ Cookie の属性はセクション 7 です。
 
 ## 6. セッションの延長
 
-セクション 3 でパスキーがあり、`AppGrant.permission` が `admin` または `user` のときだけ、次を行います。
+セクション 3 でパスキーがあり、実効許可が `allow` のときだけ、次を行います。
 
 - `EXPIRE sess:{APP_ID}:{tokenHash} SESSION_MAX_AGE_SECONDS`
 - `__Host-session` の Max-Age を同じ秒数で再設定する。トークンの値は変えません
@@ -221,14 +211,14 @@ PostgreSQL のひな型は [participant-access.sql](./participant/participant-ac
 
 | 対象 | 許す操作 |
 |------|----------|
-| `User` | `id`、`email`、`name` の `SELECT` |
+| `User` | `id`、`email`、`name`、`role`、`disabledAt` の `SELECT` |
 | `WebAuthnCredential` | `id` と `userId` の `SELECT`（件数のみ） |
 | `App`、`AppGrant` | `SELECT` |
 | `sess:*` | `GET`、`EXPIRE`、`DEL` |
 | `handoff:*` | `GET`、`GETDEL`、`DEL` |
 | `sess:user:*` | `SREM` |
 
-Redis ユーザーは全参加アプリで共通です。このアプリが操作するのは `sess:{APP_ID}:*` と `handoff:{APP_ID}:*` だけです。`password`、`role`、`publicKey`、`counter`、`credentialId`、`transports` は与えません。セッションの `SET` と、ユーザー索引への `SADD` も与えません。コードの消費は `GETDEL` です。`GET` のあとに `DEL` する実装にはしません。
+Redis ユーザーは全参加アプリで共通です。このアプリが操作するのは `sess:{APP_ID}:*` と `handoff:{APP_ID}:*` だけです。`password`、`publicKey`、`counter`、`credentialId`、`transports` は与えません。`role` と `disabledAt` は与えます。セッションの `SET` と、ユーザー索引への `SADD` も与えません。コードの消費は `GETDEL` です。`GET` のあとに `DEL` する実装にはしません。
 
 ## 11. ローカル開発
 
@@ -243,8 +233,8 @@ Redis ユーザーは全参加アプリで共通です。このアプリが操�
 - セッション Cookie に `Domain` を付けない
 - 引き渡しコードは 60 秒、`GETDEL` の単回、`state` と `redirect_uri` の完全一致
 - セッション Cookie の値は、引き渡し JSON の `token` だけ
-- `AppGrant` が無いユーザーには、既存セッションの TTL を延ばさない
-- 画面の権限は `AppGrant.permission` だけを見る
+- 実効許可が `allow` でないユーザーには、既存セッションの TTL を延ばさない
+- 入場は利用許可、業務操作はアプリ内ロール、管理操作とロール管理は共通ロールで分ける
 - 更新リクエストは自オリジンの `Origin` だけを受ける
 - ログアウト後の完了画面から、引き渡しを自動では開始しない
 - パスキー儀式の origin は認証サーバーだけ

@@ -6,9 +6,17 @@ import { hashPassword } from '@/server/auth/password'
 import { generateToken } from '@/server/auth/tokens'
 import { readDefaultPermission, readGrantPermission } from '@/server/auth/permissions'
 import emailChanges from '@/server/api/routes/email-change'
-import { AppDB, AppGrantDB, EmailChangeDB, UserDB } from '@/server/db'
+import {
+  AppDB,
+  AppGrantDB,
+  EmailChangeDB,
+  SessionDB,
+  UserDB,
+  changeUserRole,
+  setUserDisabled
+} from '@/server/db'
 import type { AppRecord } from '@/server/db/app'
-import { resolveInviteRole } from '@/lib/user-role'
+import { parseUserRole, resolveInviteRole } from '@/lib/user-role'
 import {
   loadSession,
   requireAdmin,
@@ -111,6 +119,70 @@ admin.post('/users', async (c) => {
   }
 })
 
+function serializeManagedUser(user: {
+  id: string
+  email: string
+  name: string
+  role: string
+  disabledAt: Date | null
+}) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    disabledAt: user.disabledAt
+  }
+}
+
+admin.patch('/users/:id/role', requireAdmin, async (c) => {
+  try {
+    const body = await c.req.json()
+    const role = parseUserRole(body.role)
+    if (!role) {
+      return c.json({ error: 'ロールが正しくありません' }, 400)
+    }
+
+    const result = await changeUserRole({
+      actorId: c.get('user').id,
+      targetId: c.req.param('id'),
+      role
+    })
+    if (!result.ok) {
+      return c.json({ error: result.error }, result.status)
+    }
+    return c.json(serializeManagedUser(result.user), 200)
+  } catch (error) {
+    console.error('ロール変更エラー:', error)
+    return c.json({ error: 'ロールの変更に失敗しました' }, 500)
+  }
+})
+
+admin.patch('/users/:id/disabled', requireAdmin, async (c) => {
+  try {
+    const body = await c.req.json()
+    if (typeof body.disabled !== 'boolean') {
+      return c.json({ error: '無効化の指定が正しくありません' }, 400)
+    }
+
+    const targetId = c.req.param('id')
+    const result = await setUserDisabled({
+      targetId,
+      disabled: body.disabled
+    })
+    if (!result.ok) {
+      return c.json({ error: result.error }, result.status)
+    }
+    if (result.revokeSessions) {
+      await SessionDB.revokeAllForUser(targetId)
+    }
+    return c.json(serializeManagedUser(result.user), 200)
+  } catch (error) {
+    console.error('アカウント無効化エラー:', error)
+    return c.json({ error: 'アカウント状態の変更に失敗しました' }, 500)
+  }
+})
+
 function isPrismaError(error: unknown, code: string): boolean {
   return (
     typeof error === 'object' &&
@@ -165,11 +237,11 @@ admin.post('/apps', async (c) => {
       return c.json({ error: validated.error }, 400)
     }
     if (!Object.prototype.hasOwnProperty.call(body, 'defaultPermission')) {
-      return c.json({ error: '既定の権限は必須です' }, 400)
+      return c.json({ error: '既定の利用許可は必須です' }, 400)
     }
     const defaultPermission = readDefaultPermission(body.defaultPermission)
     if (!defaultPermission.ok) {
-      return c.json({ error: '既定の権限が正しくありません' }, 400)
+      return c.json({ error: '既定の利用許可が正しくありません' }, 400)
     }
 
     const app = await AppDB.create({
@@ -221,7 +293,7 @@ admin.patch('/apps/:id', async (c) => {
     if (Object.prototype.hasOwnProperty.call(body, 'defaultPermission')) {
       const defaultPermission = readDefaultPermission(body.defaultPermission)
       if (!defaultPermission.ok) {
-        return c.json({ error: '既定の権限が正しくありません' }, 400)
+        return c.json({ error: '既定の利用許可が正しくありません' }, 400)
       }
       details.defaultPermission = defaultPermission.value
     }
@@ -272,10 +344,10 @@ admin.put('/grants', async (c) => {
     const appId = String(body.appId || '')
     const permission = readGrantPermission(body.permission)
     if (!userId || !appId || !permission) {
-      return c.json({ error: 'ユーザー、アプリ、権限が必要です' }, 400)
+      return c.json({ error: 'ユーザー、アプリ、利用許可が必要です' }, 400)
     }
     if (appId === authEnv.appId()) {
-      return c.json({ error: '認証サーバーへの権限は設定できません' }, 400)
+      return c.json({ error: '認証サーバーへの利用許可は設定できません' }, 400)
     }
 
     const user = await UserDB.findById(userId)
@@ -296,7 +368,7 @@ admin.delete('/grants/:userId/:appId', async (c) => {
   try {
     const appId = c.req.param('appId')
     if (appId === authEnv.appId()) {
-      return c.json({ error: '認証サーバーへの権限は設定できません' }, 400)
+      return c.json({ error: '認証サーバーへの利用許可は設定できません' }, 400)
     }
     const deleted = await AppGrantDB.delete(c.req.param('userId'), appId)
     if (!deleted) {

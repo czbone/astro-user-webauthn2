@@ -10,8 +10,23 @@ CREATE TABLE "User" (
     "password" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "role" TEXT NOT NULL,
+    "disabledAt" TIMESTAMP(3),
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "RoleChange" (
+    "id" TEXT NOT NULL,
+    "actorId" TEXT NOT NULL,
+    "targetId" TEXT NOT NULL,
+    "fromRole" TEXT NOT NULL,
+    "toRole" TEXT NOT NULL,
+    "success" BOOLEAN NOT NULL,
+    "reason" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "RoleChange_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -58,6 +73,12 @@ CREATE TABLE "WebAuthnCredential" (
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
+CREATE INDEX "RoleChange_actorId_createdAt_idx" ON "RoleChange"("actorId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "RoleChange_targetId_createdAt_idx" ON "RoleChange"("targetId", "createdAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "App_origin_key" ON "App"("origin");
 
 -- CreateIndex
@@ -71,6 +92,12 @@ CREATE UNIQUE INDEX "WebAuthnCredential_credentialId_key" ON "WebAuthnCredential
 
 -- CreateIndex
 CREATE INDEX "WebAuthnCredential_userId_idx" ON "WebAuthnCredential"("userId");
+
+-- AddForeignKey
+ALTER TABLE "RoleChange" ADD CONSTRAINT "RoleChange_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RoleChange" ADD CONSTRAINT "RoleChange_targetId_fkey" FOREIGN KEY ("targetId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "AppGrant" ADD CONSTRAINT "AppGrant_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

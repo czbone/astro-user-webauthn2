@@ -63,6 +63,9 @@ auth.post('/login/password', async (c) => {
     if (!user || !(await verifyPassword(password, user.password))) {
       return c.json({ error: 'メールアドレスまたはパスワードが正しくありません' }, 401)
     }
+    if (user.disabledAt) {
+      return c.json({ error: 'このアカウントは無効です' }, 403)
+    }
 
     const credentialCount = await UserDB.countCredentials(user.id)
     if (credentialCount > 0) {
@@ -116,6 +119,9 @@ auth.post('/login/method', async (c) => {
     if (!user) {
       return c.json({ error: 'ログインに失敗しました' }, 401)
     }
+    if (user.disabledAt) {
+      return c.json({ error: 'このアカウントは無効です' }, 403)
+    }
 
     const credentialCount = await UserDB.countCredentials(user.id)
     if (credentialCount > 0) {
@@ -140,6 +146,11 @@ auth.post('/login/passkey/options', async (c) => {
       return c.json({ error: 'メールアドレスは必須です' }, 400)
     }
 
+    const user = await UserDB.findByEmail(email)
+    if (user?.disabledAt) {
+      return c.json({ error: 'このアカウントは無効です' }, 403)
+    }
+
     const result = await createAuthenticationOptions(email)
     return c.json({ options: result.options, method: 'passkey' }, 200)
   } catch (error) {
@@ -160,6 +171,9 @@ auth.post('/login/passkey/verify', async (c) => {
     const user = await UserDB.findById(userId)
     if (!user) {
       return c.json({ error: 'ユーザーが見つかりません' }, 404)
+    }
+    if (user.disabledAt) {
+      return c.json({ error: 'このアカウントは無効です' }, 403)
     }
 
     const { token } = await createSession(user.id)
@@ -251,7 +265,7 @@ auth.post('/password-reset/request', async (c) => {
     }
 
     const user = await UserDB.findByEmail(email)
-    if (user) {
+    if (user && !user.disabledAt) {
       await PasswordResetDB.invalidatePendingForUser(user.id)
       const token = generateToken()
       await PasswordResetDB.create(
@@ -287,6 +301,10 @@ auth.post('/password-reset/confirm', async (c) => {
     const reset = await PasswordResetDB.findValidByTokenHash(tokenHash)
     if (!reset) {
       return c.json({ error: '再設定リンクが無効または期限切れです' }, 400)
+    }
+    const resetUser = await UserDB.findById(reset.userId)
+    if (!resetUser || resetUser.disabledAt) {
+      return c.json({ error: 'このアカウントは無効です' }, 403)
     }
 
     const passwordHash = await hashPassword(password)
@@ -343,6 +361,10 @@ auth.post('/magic/consume', async (c) => {
     if (!pending) {
       return c.json({ error: 'ログイン用リンクが無効または期限切れです' }, 400)
     }
+    const magicUser = await UserDB.findById(pending.userId)
+    if (!magicUser || magicUser.disabledAt) {
+      return c.json({ error: 'このアカウントは無効です' }, 403)
+    }
 
     const credentialCount = await UserDB.countCredentials(pending.userId)
     if (credentialCount > 0) {
@@ -386,7 +408,7 @@ auth.post('/magic/resend', async (c) => {
     }
 
     const user = await UserDB.findByEmail(email)
-    if (user && (await UserDB.countCredentials(user.id)) === 0) {
+    if (user && !user.disabledAt && (await UserDB.countCredentials(user.id)) === 0) {
       await issueInviteMagicLink({
         userId: user.id,
         email: user.email,

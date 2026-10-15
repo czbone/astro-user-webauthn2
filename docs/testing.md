@@ -57,9 +57,9 @@ pnpm test:all
 
 対象:
 
-- `src/server/api/auth.integration.test.ts` — パスワード／マジックリンク、セッション、ログアウト、再設定、パスキー登録
-- `src/server/api/admin.integration.test.ts` — ユーザー招待・一覧・統計、アプリの既定権限、例外の `none`
-- `src/server/api/devices.integration.test.ts` — 一覧、削除、再認証、招待、登録
+- `src/server/api/auth.integration.test.ts` — パスワード／マジックリンク、セッション、ログアウト、再設定、パスキー登録、無効アカウントのログイン開始拒否と全セッション破棄
+- `src/server/api/admin.integration.test.ts` — ユーザー招待・一覧・統計、共通ロールの変更、無効化と再実行、アプリの利用許可、例外の `none`
+- `src/server/api/devices.integration.test.ts` — 一覧、削除、再認証、招待、登録、無効アカウントの登録拒否
 - `src/server/auth/handoff.integration.test.ts` — 引き渡しと実効権限
 - `src/server/api/email-change.integration.test.ts` — メールアドレス変更の申請、受信確認、確定
 - `src/server/db/*.integration.test.ts` — User / Credential / Session / DeviceInvite / PasswordReset / MagicLink / EmailChange
@@ -90,7 +90,7 @@ pnpm dev
 
 `pnpm dev` は待受 URL として `http://localhost:3000` を表示します。ページを開くと、開発中は認証サーバーのオリジン `http://auth.localhost:3000` へ移ります。ログインとパスキー登録はこのホストで行います。`localhost` のまま変更リクエストを送ると `Origin` が一致せず、「オリジンが不正です」になります。
 
-seed 管理者（`.env` の `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`）は、メールアドレスを入れて「続行」したあと、表示されたパスワード欄に `SEED_ADMIN_PASSWORD` を入れてログインし、パスキーを登録してください。参加アプリの利用可否は、アプリの既定権限と例外の `AppGrant` で決まります。認証サーバー自身には `AppGrant` を付けません。
+seed 管理者（`.env` の `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`）は、メールアドレスを入れて「続行」したあと、表示されたパスワード欄に `SEED_ADMIN_PASSWORD` を入れてログインし、パスキーを登録してください。参加アプリに入れるかは、アプリの既定の利用許可と例外の `AppGrant` で決まります。認証サーバー自身には `AppGrant` を付けません。
 
 ローカルでは `MAIL_MODE=console` のため、招待・再設定メールはサーバーログに出力されます。
 
@@ -106,5 +106,5 @@ WebAuthn の RP ID は `WEBAUTHN_RP_ID`（開発既定 `auth.localhost`）です
 | 管理者によるユーザー招待 | `/admin/users`（ログの招待リンク） |
 | デバイス追加 | `/devices` → `/invite/device/[token]` |
 | ログインできないときの復旧 | `/forgot-password` → `/reset-password/[token]` |
-| アプリの既定権限と例外 | `/admin/apps` |
+| アプリの利用許可と例外 | `/admin/apps` |
 | 管理者ダッシュボード | `/dashboard` |

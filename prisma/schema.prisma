@@ -8,15 +8,34 @@ datasource db {
 }
 
 model User {
-  id          String               @id @default(uuid())
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  email       String               @unique
-  password    String
-  name        String
-  role        String
-  credentials WebAuthnCredential[]
-  grants      AppGrant[]
+  id                  String               @id @default(uuid())
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  email               String               @unique
+  password            String
+  name                String
+  role                String
+  disabledAt          DateTime?
+  credentials         WebAuthnCredential[]
+  grants              AppGrant[]
+  roleChangesAsActor  RoleChange[]         @relation("RoleChangeActor")
+  roleChangesAsTarget RoleChange[]         @relation("RoleChangeTarget")
+}
+
+model RoleChange {
+  id        String   @id @default(uuid())
+  actorId   String
+  targetId  String
+  fromRole  String
+  toRole    String
+  success   Boolean
+  reason    String?
+  createdAt DateTime @default(now())
+  actor     User     @relation("RoleChangeActor", fields: [actorId], references: [id], onDelete: Restrict)
+  target    User     @relation("RoleChangeTarget", fields: [targetId], references: [id], onDelete: Restrict)
+
+  @@index([actorId, createdAt])
+  @@index([targetId, createdAt])
 }
 
 model App {

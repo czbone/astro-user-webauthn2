@@ -80,34 +80,53 @@ seed 管理者: 初期パスワードログイン → パスキー必須登録 �
 | アカウント復旧（パスワード再設定・パスキー全削除） | ○                           | ○                             | ○                      |
 | 自分のデバイス管理                                 | ○                           | ○                             | ○                      |
 | `/dashboard`                                       | ×                           | ×                             | ○                      |
-| ユーザー招待・一覧                                 | ×                           | ○（`user` と `manager` のみ） | ○                      |
+| ユーザー招待・一覧                                 | ×                           | ○（`user` のみ）              | ○                      |
+| 共通ロールの変更                                   | ×                           | ×                             | ○（最後の有効な admin は降格できない） |
+| アカウントの無効化・再有効化                       | ×                           | ×                             | ○（最後の有効な admin は無効化できない） |
 | メールアドレス変更（受信確認のあとパスキーで確定） | ×                           | ○（`user` と `manager` のみ） | ○（全ロール）          |
-| アプリ登録・既定権限・`AppGrant` の編集            | ×                           | ×                             | ○                      |
+| アプリ登録・利用許可・`AppGrant` の編集            | ×                           | ×                             | ○                      |
 
 - ロール値: `admin` / `manager` / `user`
-- 招待時の role 既定は `user`。`admin` は admin だけが指定できる。`manager` は admin と manager が指定できる
-- `User.role` は認証サーバー自身の管理操作だけに使う。参加アプリの実効権限には使わない。seed 管理者でも、参加アプリの既定が `user` で例外行が無ければ参加アプリでは `user` になる
+- 招待時の role 既定は `user`。`admin` は `admin` / `manager` / `user` を指定できる。`manager` は `user` だけを指定できる
+- 共通ロールの変更は admin だけが行う。成功と、最後の有効な admin を降格しようとした失敗は `RoleChange` に残す。admin 以外の呼び出しは履歴に残さない
+- 有効な admin は、`role` が `admin` かつ `disabledAt` が null のユーザーである。最後の1人は降格も無効化もできない。判定と更新は同じトランザクションで、対象行と有効な admin 行をロックしてから行う。削除 API は置かない
+- 無効ユーザー（`disabledAt` がある）にはセッションを発行しない。ログイン方式の判定、パスキー認証の開始、デバイス招待によるパスキー登録も拒否する。既存セッションは解決時に、そのユーザーの全セッションを破棄する。無効化に成功したとき、およびすでに無効なユーザーへの無効化の再実行でも、そのユーザーの全セッションを失効する。再有効化はセッションを作らない
+- `User.role` は認証サーバーの管理操作と、参加アプリが読む共通ロールである。利用許可の計算には使わない。共通ロールが `admin` や `manager` でも、利用許可がなければ参加アプリへは渡さない
 - 認証サーバー自身への入場に `AppGrant` は使わない
 
-## 参加アプリの利用権限
+## 参加アプリの利用許可
 
-参加アプリの利用可否は、アプリの既定と利用者ごとの例外で決める。利用者全員の `AppGrant` は作らない。
+参加アプリに入れるかは、アプリの既定と利用者ごとの例外で決める。利用者全員の `AppGrant` は作らない。この値は業務ロールではない。
 
-- `App.defaultPermission`: `NULL`、または正の権限（現在は `admin` と `user`）。`NULL` は、行がある人だけ入れる。空文字と `none` は既定に書かない
-- `AppGrant.permission`: 正の権限、または `none`。`none` はその利用者だけを拒否する。`(userId, appId)` は一意
-- 実効権限は `User.role` を見ない。`App` が無い、または `AppGrant` が `none`・空・一覧外なら付与なし。行があるときはその値を使い、既定へは進まない。行が無く既定が正の権限ならその既定。それ以外は付与なし
-- 例外行は既定を置き換える。高い方は取らない
-- セッション JSON に権限も `User.role` も載せない。既定や行の変更は次のリクエストから効き、セッションの作り直しは要らない
+- `App.defaultPermission`: `NULL`、または `allow`。`NULL` は、行がある人だけ入れる。空文字と `none` は既定に書かない
+- `AppGrant.permission`: `allow`、または `none`。`none` はその利用者だけを拒否する。`(userId, appId)` は一意
+- 実効許可は `User.role` を見ない。`App` が無い、または `AppGrant` が `none`・空・`allow` 以外なら付与なし。行があるときはその値を使い、既定へは進まない。行が無く既定が `allow` なら入れる。それ以外は付与なし
+- 例外行は既定を置き換える
+- セッション JSON に利用許可も `User.role` も載せない。既定や行の変更は次のリクエストから効き、セッションの作り直しは要らない
 - 認証サーバー自身の `App` 行は対象外。`isAuthServer` は `App.id === APP_ID` で算出し、列にはしない。そのアプリへの引き渡し、`App` 行の更新・削除、`AppGrant` の作成・更新・削除は拒否する。一覧では固定テキストにし、空の `redirectUris` は出さない
+
+## 参加アプリの認可
+
+参加アプリ本体はこのリポジトリに置かない。参加アプリは次の順で、サーバー側の操作を認可する。クライアントが送ったロール名は信頼しない。識別子は変わらない `User.id` を使い、メールアドレスは識別子にしない。
+
+1. セッションを検証し、共通ユーザー ID を得る
+2. `disabledAt` があれば拒否する。パスキーが無いときも拒否する
+3. 上の利用許可が `allow` でなければ、業務操作も管理操作も拒否する
+4. 業務操作は、そのアプリが `User.id` に割り当てたアプリ内ロールで判定する。ロール定義は、最初はアプリ内の固定設定でよい
+5. 共通 `admin` は、アプリ内ロールを割り当てなくても、そのアプリの管理操作ができる。業務ロールそのものは自動では付かない
+6. 共通 `manager` は、全参加アプリのアプリ内ロールを割り当て・変更・解除できる。管理対象アプリの個別テーブルは作らない。`manager` だけでは業務操作はできない
+
+アプリ内ロールの割り当ては参加アプリのデータベースに置く。あるアプリの変更が、別のアプリのロールに影響してはならない。
 
 ## データモデル
 
 ### PostgreSQL（永続）
 
-- `User`: id(UUID), email, password(scrypt ハッシュ), name, role
+- `User`: id(UUID), email, password(scrypt ハッシュ), name, role, disabledAt（null が有効）
 - `WebAuthnCredential`: credentialId, publicKey, counter, transports, deviceName（登録時は必須。同一ユーザー内で重複不可。既存の未設定レコードは null 可）
-- `App`: id, name, origin, redirectUris, defaultPermission（nullable）
-- `AppGrant`: userId, appId, permission。`userId` は必須。一意は `(userId, appId)`
+- `App`: id, name, origin, redirectUris, defaultPermission（nullable。`allow` または null）
+- `AppGrant`: userId, appId, permission（`allow` または `none`）。`userId` は必須。一意は `(userId, appId)`
+- `RoleChange`: actorId, targetId, fromRole, toRole, success, reason, createdAt。ユーザー削除は無いので、外部キーは Restrict
 
 ブラウザへ渡す資格情報一覧は ID のみとする。対象はログインと再認証の `allowCredentials`、登録時の `excludeCredentials`。`transports` は付けない。Chrome は `transports` を絞り込みに使い、候補が 0 件だと「利用可能なパスキーがありません」を出す。
 
@@ -136,7 +155,7 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 | Token                        | 通常アクセスでは変更しない（Cookie Max-Age と Redis TTL のみ更新）                    |
 | ログアウト                   | Cookie 削除 + 当該 Session キー削除（他アプリ・他デバイスは残す）                     |
 | すべてのアプリからログアウト | ユーザー索引の全要素を削除し、認証サーバーの Cookie を削除する                        |
-| 全失効                       | `sess:user:{userId}` 経由で全キー削除（パスワード再設定時、招待マジックリンク再送時、メールアドレス変更の確定時） |
+| 全失効                       | `sess:user:{userId}` 経由で全キー削除（パスワード再設定時、招待マジックリンク再送時、メールアドレス変更の確定時、アカウント無効化時、無効化の再実行時、無効ユーザーのセッション解決時） |
 
 詳細は [session-management.md](./session-management.md)。
 
@@ -151,8 +170,8 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 ### 認証 `/api/auth`
 
 - `POST /login/password` — Credential 0 件のみ（seed 管理者の初回、および復旧直後のパスキー再登録前）
-- `POST /login/method` — メールアドレスからログイン方式を判定。Credential ありはパスキー（options 付き。資格情報一覧は ID のみ）、0 件はマジックリンク。存在しないメールは 401
-- `POST /login/passkey/options|verify` — options の資格情報一覧は ID のみ（上記）
+- `POST /login/method` — メールアドレスからログイン方式を判定。Credential ありはパスキー（options 付き。資格情報一覧は ID のみ）、0 件はマジックリンク。存在しないメールは 401。無効ユーザーは 403 で、方式もオプションも返さない
+- `POST /login/passkey/options|verify` — options の資格情報一覧は ID のみ（上記）。無効ユーザーは options を作る前に 403
 - `POST /passkey/register/options|verify` — 初回のみセッションから直接登録可。verify はデバイス名必須・同一ユーザーで重複不可
 - `POST /magic/consume` — 招待トークン消費（確認ボタン）。パスキー済みは拒否
 - `POST /magic/resend` — パスキー 0 件のときだけ再発行。発行時は既存 Session を全削除
@@ -163,17 +182,19 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 
 ### 管理者 `/api/admin`
 
-- `GET /users` / `POST /users`（招待マジックリンク＋メール。`AppGrant` は自動では付かない。未使用 EmailChange が押さえているアドレスは 409）
+- `GET /users` / `POST /users`（招待マジックリンク＋メール。`AppGrant` は自動では付かない。未使用 EmailChange が押さえているアドレスは 409。一覧は `disabledAt` を含む）
+- `PATCH /users/:id/role`（admin だけ。共通ロールを変更し、`RoleChange` を残す。最後の有効な admin の降格は 409）
+- `PATCH /users/:id/disabled`（admin だけ。`disabled` が true なら無効化し全セッションを失効する。すでに無効でも再実行で全セッションを失効する。false なら再有効化し、セッションは作らない。最後の有効な admin の無効化は 409）
 - `GET /email-changes` / `POST /email-changes`（申請は確認メールを送るだけで `User.email` もセッションも変えない。admin は全ロール、manager は対象の現在のロールが `user` または `manager` のときだけ。一覧は操作者が確定できる対象だけ）
 - `POST /email-changes/reauth/options|verify`（確定用。操作者自身のパスキー。デバイス招待の再認証とは別チャレンジ）
 - `POST /email-changes/:userId/commit`（受信済みの記録にあるアドレスだけを書き、対象の全セッションを失効する。申請者と別人でもよい。確定直前に対象ロールを読み直し、manager は対象が `admin` なら拒否する）
-- `GET /stats`（ユーザー数と管理者数）
-- `GET /apps` は各アプリに `defaultPermission`（`null` または正の権限）と `isAuthServer` を含める。認証サーバーの行は固定テキストで、値がある項目だけ出す
-- `POST /apps` は `id`、`name`、`origin`、`redirectUris`、`defaultPermission` を受け取る。`defaultPermission` は必須で `null` または正の権限。認証サーバー自身の ID は登録できない
-- `PATCH /apps/:id` は、参加アプリでは `defaultPermission` を省略すると変えない。指定時は `null` または正の権限。`id` と `origin` は変更しない。認証サーバー自身への `PATCH` は拒否する
+- `GET /stats`（ユーザー数と、有効な admin の人数）
+- `GET /apps` は各アプリに `defaultPermission`（`null` または `allow`）と `isAuthServer` を含める。認証サーバーの行は固定テキストで、値がある項目だけ出す
+- `POST /apps` は `id`、`name`、`origin`、`redirectUris`、`defaultPermission` を受け取る。`defaultPermission` は必須で `null` または `allow`。認証サーバー自身の ID は登録できない
+- `PATCH /apps/:id` は、参加アプリでは `defaultPermission` を省略すると変えない。指定時は `null` または `allow`。`id` と `origin` は変更しない。認証サーバー自身への `PATCH` は拒否する
 - `DELETE /apps/:id` は認証サーバー自身を削除しない
 - `GET /grants` は参加アプリの例外行（`none` を含む）を返す。認証サーバー自身の行は返さない
-- `PUT /grants` は `userId`、`appId`、`permission`（正の権限または `none`）で upsert する。認証サーバー自身は拒否する
+- `PUT /grants` は `userId`、`appId`、`permission`（`allow` または `none`）で upsert する。認証サーバー自身は拒否する
 - `DELETE /grants/:userId/:appId` は例外行を消し、その利用者を既定の判定に戻す。認証サーバー自身は拒否する
 - 空文字、既定への `none`、一覧に無い値は 400
 
@@ -182,11 +203,11 @@ Session / Invite / Reset / Magic のトークンは生値を Cookie・URL・メ�
 - `GET /` / `DELETE /:id`（最後の1件は削除不可）
 - `POST /reauth/options|verify`
 - `POST /invite`（再認証必須＋メール）
-- `POST /register/options|verify`（招待トークン、ログイン不要）。verify はデバイス名必須・同一ユーザーで重複不可
+- `POST /register/options|verify`（招待トークン、ログイン不要）。verify はデバイス名必須・同一ユーザーで重複不可。無効ユーザーは 403 で、登録オプションも認証器も作らない
 
 ### 引き渡し `GET /auth/handoff`
 
-セッションを作る条件は、認証サーバーのセッション、Credential が 1 件以上、対象アプリの実効権限が正の権限、`redirect_uri` が `App.redirectUris` と完全一致。`appId` が認証サーバー自身、または戻り先のオリジンが認証サーバーと同じときは拒否する。実効権限が付与なしのときはセッションを作らず 403「引き渡し先のアプリを利用できません」。このとき認証サーバーのセッション TTL も延ばさない。
+セッションを作る条件は、認証サーバーの有効なセッション、Credential が 1 件以上、対象アプリの実効許可が `allow`、`redirect_uri` が `App.redirectUris` と完全一致。`appId` が認証サーバー自身、または戻り先のオリジンが認証サーバーと同じときは拒否する。実効許可が付与なしのときはセッションを作らず 403「引き渡し先のアプリを利用できません」。このとき認証サーバーのセッション TTL も延ばさない。共通ロールだけでは引き渡さない。
 
 ## 環境変数
 

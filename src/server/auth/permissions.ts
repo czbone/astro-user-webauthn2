@@ -1,10 +1,10 @@
-export const POSITIVE_PERMISSIONS = ['admin', 'user'] as const
+export const POSITIVE_PERMISSIONS = ['allow'] as const
 
 export type PositivePermission = (typeof POSITIVE_PERMISSIONS)[number]
 export type GrantPermission = PositivePermission | 'none'
 
 export function isPositivePermission(value: unknown): value is PositivePermission {
-  return value === 'admin' || value === 'user'
+  return value === 'allow'
 }
 
 export function readDefaultPermission(

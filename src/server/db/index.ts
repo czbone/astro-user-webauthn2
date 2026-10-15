@@ -1,4 +1,5 @@
 export { default as UserDB } from './user'
+export { changeUserRole, setUserDisabled } from './user-account'
 export { default as AppDB } from './app'
 export { default as AppGrantDB } from './app-grant'
 export { default as HandoffDB } from './handoff'

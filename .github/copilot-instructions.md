@@ -40,8 +40,8 @@
 - パスキーでログインできないときの復旧はパスワード再設定（自動化しない）。招待ユーザーも同じ。
 - パスキー未設定セッションは setup / logout / me 以外を拒否してください。
 - 2台目以降のパスキーは再認証＋デバイス招待メール経由のみです。
-- ロールは `admin` / `manager` / `user`。ダッシュボード、アプリと `AppGrant` の編集は admin のみ。ユーザー一覧と招待は admin と manager。manager が招待できるのは `user` と `manager`。参加アプリの実効権限には使わない。
-- 参加アプリの利用可否は `App.defaultPermission` と `AppGrant`。利用者全員の行は作らない。認証サーバー自身の入場に `AppGrant` は使わない。
+- ロールは `admin` / `manager` / `user`。ダッシュボード、アプリと利用許可の編集、共通ロールの変更、アカウントの無効化は admin のみ。ユーザー一覧と招待、メールアドレス変更は admin と manager。manager が招待できるのは `user` だけ。最後の有効な admin は降格も無効化もできない。無効ユーザーはセッションを発行せず、ログイン開始とデバイス招待のパスキー登録も拒否する。既存セッションは解決時に全件破棄し、無効化の再実行でも全セッションを失効する。
+- 参加アプリの入場は `App.defaultPermission` と `AppGrant` の利用許可（`allow` / `none`）。利用者全員の行は作らない。共通ロールでは入場しない。認証サーバー自身の入場に `AppGrant` は使わない。業務ロールは参加アプリが持つ。
 
 ## Astro と React の指針
 
@@ -64,7 +64,7 @@
 
 ## データモデルの前提
 
-- PostgreSQL: `User`（email unique, password(scrypt hash), name, role）/ `WebAuthnCredential` / `App`（`defaultPermission` は nullable）/ `AppGrant`
+- PostgreSQL: `User`（email unique, password(scrypt hash), name, role, disabledAt）/ `WebAuthnCredential` / `App`（`defaultPermission` は nullable）/ `AppGrant` / `RoleChange`
 - Redis: Session / DeviceInvite / PasswordReset / WebAuthn challenge / rate limit（詳細は `docs/redis.md`）
 - Session / Invite / Reset トークンはクライアントに生値、Redis キーは SHA-256 ハッシュ
 

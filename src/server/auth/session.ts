@@ -68,6 +68,10 @@ export async function readSessionFromToken(
     await SessionDB.revoke(appId, tokenHash)
     return null
   }
+  if (userRow.disabledAt) {
+    await SessionDB.revokeAllForUser(userRow.id)
+    return null
+  }
 
   const role = parseUserRole(userRow.role)
   if (!role) return null

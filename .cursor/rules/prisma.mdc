@@ -9,7 +9,7 @@ alwaysApply: false
 - Prisma Client は `src/lib/prisma.ts` の `prisma` のみを使う。
 - import は `@/generated/prisma/client`。
 - ID は UUID（文字列）。
-- 永続データ（User / Credential / App / AppGrant）の操作は `src/server/db` に置く。
+- 永続データ（User / Credential / App / AppGrant / RoleChange）の操作は `src/server/db` に置く。
 - Session / Invite / Reset / Magic / challenge / rate limit は Redis（`src/lib/redis.ts`、キーは `src/server/redis/keys.ts`）。
 
 ```ts

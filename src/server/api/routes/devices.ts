@@ -38,6 +38,9 @@ devices.post('/register/options', async (c) => {
     if (!user) {
       return c.json({ error: '招待が無効または期限切れです' }, 400)
     }
+    if (user.disabledAt) {
+      return c.json({ error: 'このアカウントは無効です' }, 403)
+    }
 
     const options = await createRegistrationOptions(user.id, user.email, user.name)
     return c.json({ options, email: user.email, name: user.name }, 200)
@@ -61,6 +64,14 @@ devices.post('/register/verify', async (c) => {
     const invite = await InviteDB.findValidByTokenHash(tokenHash)
     if (!invite) {
       return c.json({ error: '招待が無効または期限切れです' }, 400)
+    }
+
+    const user = await UserDB.findById(invite.userId)
+    if (!user) {
+      return c.json({ error: '招待が無効または期限切れです' }, 400)
+    }
+    if (user.disabledAt) {
+      return c.json({ error: 'このアカウントは無効です' }, 403)
     }
 
     const deviceName = CredentialDB.normalizeDeviceName(body.deviceName)

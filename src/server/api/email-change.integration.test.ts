@@ -197,7 +197,7 @@ describe('email change integration', () => {
     const { user: admin, cookie } = await adminCookie()
     const { user } = await createTestUser({ email: 'member@example.com', name: 'Member' })
     await insertPasskeyFixture(user.id, { deviceName: 'phone' })
-    await grantAppAccess(user.id, 'user', 'posts')
+    await grantAppAccess(user.id, 'allow', 'posts')
     await createSession(user.id)
     const magic = generateToken()
     const invite = generateToken()
@@ -252,7 +252,7 @@ describe('email change integration', () => {
       await prisma.appGrant.findUnique({
         where: { userId_appId: { userId: user.id, appId: 'posts' } }
       })
-    ).toMatchObject({ permission: 'user' })
+    ).toMatchObject({ permission: 'allow' })
     expect(await SessionDB.countForUser(user.id)).toBe(0)
     expect(await SessionDB.countForUser(admin.id)).toBe(1)
     expect(await MagicLinkDB.findValidByTokenHash(hashToken(magic))).toBeNull()

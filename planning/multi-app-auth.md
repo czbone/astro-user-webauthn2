@@ -34,11 +34,11 @@
 | ロール | `User` | `WebAuthnCredential` | `App` / `AppGrant` | そのアプリの業務テーブル |
 |--------|--------|----------------------|--------------------|--------------------------|
 | 認証サーバー | 読み書き | 読み書き | 読み書き | 認証サーバー自身の業務テーブルのみ |
-| 参加アプリ | `id` / `email` / `name` の参照 | `id` / `userId` の参照（件数だけ） | 参照 | 読み書き |
+| 参加アプリ | `id` / `email` / `name` / `role` / `disabledAt` の参照 | `id` / `userId` の参照（件数だけ） | 参照 | 読み書き |
 
-参加アプリには `User.password`、`User.role`、`WebAuthnCredential` の公開鍵・カウンタ・`credentialId`・`transports` を与えません。
+参加アプリには `User.password`、`WebAuthnCredential` の公開鍵・カウンタ・`credentialId`・`transports` を与えません。`User.role` と `User.disabledAt` は与えます。
 
-`User.role` は認証サーバー上の権限です（ユーザー招待と `AppGrant` の編集）。参加アプリの画面権限には使いません。
+利用許可は [app-permissions/grant.md](./app-permissions/grant.md) です。`User.role` は入場の計算には使いません。入場後の管理操作とアプリ内ロール管理に使います。
 
 ### Redis
 
@@ -74,11 +74,11 @@
 |----|------|
 | `userId` | `User.id` |
 | `appId` | `App.id` |
-| `permission` | `admin` または `user` |
+| `permission` | `allow` または `none` |
 
-一意制約は `(userId, appId)` です。行が無いユーザーは、そのアプリを使えません。`permission` はそのアプリの中の権限です。認証サーバーの `User.role` とは独立です。
+一意制約は `(userId, appId)` です。実効許可は [app-permissions/grant.md](./app-permissions/grant.md) です。行が無く既定も `allow` でなければ、そのアプリを使えません。`permission` は入場の可否であり、業務ロールではありません。
 
-seed 管理者は、全アプリへ自動では通しません。認証サーバーの `User.role = admin` だけを持ち、各アプリの利用は `AppGrant` を明示して与えます。
+seed 管理者も、利用許可がなければ参加アプリへは渡しません。共通ロールだけでは入場しません。
 
 ### Redis のセッション
 

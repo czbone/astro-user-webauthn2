@@ -60,14 +60,14 @@
 }
 ```
 
-ユーザースナップショットは載せない。権限も `User.role` も載せない。認証解決時は `userId` で PostgreSQL から User を取得する。参加アプリの利用可否は、セッションではなくリクエスト時の実効権限で決める。
+ユーザースナップショットは載せない。利用許可も `User.role` も載せない。認証解決時は `userId` で PostgreSQL から User を取得する。参加アプリの入場は、セッションではなくリクエスト時の実効許可で決める。`disabledAt` があるユーザーのセッションは、解決時に全件破棄する。
 
 ### 操作
 
 | 操作 | Redis |
 |------|-------|
 | 作成 | `SET sess:{appId}:{tokenHash} JSON EX ttl` + `SADD sess:user:{userId} {appId}/{tokenHash}`（索引 SET にも適切な TTL を付与または更新） |
-| 検証成功 | 認証サーバーではパスキーがあるときだけ `EXPIRE sess:{appId}:{tokenHash} ttl` + Cookie Max-Age 再設定。入場に `AppGrant` は使わない。引き渡しは実効権限が正の権限のときだけ参加アプリのセッションを作り、付与なしのときは認証サーバーの TTL も延ばさない |
+| 検証成功 | 認証サーバーではパスキーがあり、無効でないときだけ `EXPIRE sess:{appId}:{tokenHash} ttl` + Cookie Max-Age 再設定。入場に `AppGrant` は使わない。引き渡しは実効許可が `allow` のときだけ参加アプリのセッションを作り、付与なしのときは認証サーバーの TTL も延ばさない |
 | ログアウト | `DEL sess:{appId}:{tokenHash}` + `SREM sess:user:{userId} {appId}/{tokenHash}` |
 | 全失効 | `SMEMBERS sess:user:{userId}` → 各 `DEL sess:{appId}:{hash}` → `DEL sess:user:{userId}` |
 
@@ -166,11 +166,11 @@ Redis は可用性の単一障害点になる。本番では永続化（AOF / RD
 
 参加アプリは自分の業務テーブルだけを書き、共有データは参照します。認証サーバーのプロセスは、これまでどおり読み書きできるロールで接続します。
 
-PostgreSQL では、参加アプリ用ロールに次の `SELECT` だけを与えます。`User.password`、`User.role`、パスキーの公開鍵・カウンタ・`credentialId`・`transports` は与えません。手順のひな型は [planning/participant/participant-access.sql](../planning/participant/participant-access.sql) です。
+PostgreSQL では、参加アプリ用ロールに次の `SELECT` だけを与えます。`User.password`、パスキーの公開鍵・カウンタ・`credentialId`・`transports` は与えません。`User.role` と `User.disabledAt` は、入場後の認可に必要なので与えます。手順のひな型は [planning/participant/participant-access.sql](../planning/participant/participant-access.sql) です。
 
-- `User` の `id`、`email`、`name`
+- `User` の `id`、`email`、`name`、`role`、`disabledAt`
 - `WebAuthnCredential` の `id`、`userId`（件数用。`SELECT COUNT(id)`）
-- `App`（`defaultPermission` を含む）、`AppGrant` の全列。`User.role` は与えない
+- `App`（`defaultPermission` を含む）、`AppGrant` の全列
 
 このログインロールは、管理者が認証サーバーと同じデータベースへ一度だけ作成します。ひな型の `CREATE ROLE` と `GRANT` はコメントアウトされているので、データベース名とパスワードを置き換えてから実行します。認証サーバーの起動処理、Prisma のマイグレーション、参加アプリは、このコマンドを実行しません。
 

@@ -25,6 +25,7 @@ export async function resetRedis() {
 }
 
 export async function resetDatabase() {
+  await prisma.roleChange.deleteMany()
   await prisma.app.deleteMany()
   await prisma.user.deleteMany()
   await resetRedis()
@@ -66,7 +67,7 @@ export async function insertPasskeyFixture(
 
 export async function grantAppAccess(
   userId: string,
-  permission: 'admin' | 'user' = 'user',
+  permission: 'allow' | 'none' = 'allow',
   appId = authEnv.appId()
 ) {
   const origin = new URL(authEnv.origin()).origin

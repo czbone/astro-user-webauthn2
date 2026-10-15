@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { prisma } from '@/lib/prisma'
 import { hashPassword, verifyPassword } from '@/server/auth/password'
 import UserDB from '@/server/db/user'
 import { createTestUser, insertPasskeyFixture, resetDatabase } from '@/test/db'
@@ -62,5 +63,11 @@ describe('UserDB', () => {
 
     expect(await UserDB.count()).toBe(2)
     expect(await UserDB.countAdmins()).toBe(1)
+  })
+
+  it('does not count a disabled admin', async () => {
+    const { user } = await createTestUser({ role: 'admin' })
+    await prisma.user.update({ where: { id: user.id }, data: { disabledAt: new Date() } })
+    expect(await UserDB.countAdmins()).toBe(0)
   })
 })

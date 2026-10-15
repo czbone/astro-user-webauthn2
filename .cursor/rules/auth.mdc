@@ -10,13 +10,15 @@ alwaysApply: true
 - パスキーでログインできないときの復旧はパスワード再設定（自動化しない）。招待ユーザーも同じ。
 - パスキー未設定セッションは setup / logout / me 以外を拒否する。
 - 2台目以降のパスキーは再認証＋デバイス招待メール経由のみ。
-- `User.role` は `admin` / `manager` / `user`。ダッシュボード、アプリと `AppGrant` の編集は admin のみ。ユーザー一覧と招待は admin と manager。manager が招待できるのは `user` と `manager`。参加アプリの実効権限には使わない。
-- 参加アプリの利用可否は `App.defaultPermission` と `AppGrant` の実効権限。利用者全員の行は作らない。`none` は例外だけの拒否。認証サーバー自身の入場に `AppGrant` は使わない。
+- `User.role` は `admin` / `manager` / `user`。ダッシュボード、アプリと利用許可の編集、共通ロールの変更、アカウントの無効化は admin のみ。ユーザー一覧と招待、メールアドレス変更は admin と manager。manager が招待できるのは `user` だけ。メールアドレス変更は対象が `user` または `manager` のときだけ。
+- 有効な admin（`role` が `admin` かつ `disabledAt` が null）が1人だけのときは、その降格と無効化を拒否する。共通ロールの変更は成功・失敗とも `RoleChange` に残す。無効ユーザーはセッションを発行せず、ログイン開始とデバイス招待のパスキー登録も拒否する。既存セッションは解決時に全件破棄し、無効化の再実行でも全セッションを失効する。
+- 参加アプリの入場は `App.defaultPermission` と `AppGrant` の利用許可（`allow` / `none`）。利用者全員の行は作らない。`none` は例外だけの拒否。共通ロールでは入場しない。認証サーバー自身の入場に `AppGrant` は使わない。
+- 業務ロールは参加アプリが `User.id` に対して持つ。共通 `admin` はアプリ内ロールなしで管理操作ができる。共通 `manager` は全参加アプリのアプリ内ロールを割り当て・変更・解除できるが、それだけでは業務操作はできない。
 - アプリのホストは `PARENT_DOMAIN` の直下サブドメインだけ。Cookie に `Domain` は付けない。WebAuthn の RP ID は認証サーバーのホスト名。
 
 ## データ前提
 
-- PostgreSQL: `User`（email unique, password は scrypt hash, name, role）/ `WebAuthnCredential` / `App`（`defaultPermission` は nullable）/ `AppGrant`
+- PostgreSQL: `User`（email unique, password は scrypt hash, name, role, disabledAt）/ `WebAuthnCredential` / `App`（`defaultPermission` は nullable）/ `AppGrant` / `RoleChange`
 - Redis: Session / Handoff / DeviceInvite / PasswordReset / MagicLink / WebAuthn challenge / rate limit
 - Session / Invite / Reset / Magic のトークンはクライアントに生値、Redis キーは SHA-256 ハッシュ
 - セッションは Cookie 名 `__Host-session` + Redis キー `sess:{appId}:{tokenHash}`。ユーザースナップショットも権限も載せない。ロールとパスキー有無は都度 PostgreSQL から解決する。

@@ -20,24 +20,23 @@ ALTER TABLE "App" ADD COLUMN "defaultPermission" TEXT NULL;
 
 | 列 | 受け付ける値 |
 | --- | --- |
-| `App.defaultPermission` | `NULL`、または [grant.md](grant.md) の正の権限 |
-| `AppGrant.permission` | 正の権限、または `none` |
+| `App.defaultPermission` | `NULL`、または `allow` |
+| `AppGrant.permission` | `allow`、または `none` |
 
-`none`、空文字列、一覧にない文字列は既定に保存しません。正の権限でも `none` でもない値は、`AppGrant` の行に保存しません。データベース制約では権限名を固定しません。権限名を追加するときは、保存時の検証と [grant.md](grant.md) の一覧を同時に更新します。
+`none`、空文字列、`allow` 以外の文字列は既定に保存しません。`allow` でも `none` でもない値は、`AppGrant` の行に保存しません。データベース制約では値を固定しません。
 
 ## 管理画面と API
 
-管理者は「アプリ」画面で、新規アプリの登録時と既存アプリの編集時に既定権限を選択できます。選択肢は次のとおりです。
+管理者は「アプリ」画面で、新規アプリの登録時と既存アプリの編集時に既定の利用許可を選択できます。選択肢は次のとおりです。
 
 | UI 表示 | 保存値 | 結果 |
 | --- | --- | --- |
-| 個別に付与した利用者のみ | `NULL` | `AppGrant` の行がある利用者だけが利用できる |
-| 全利用者に利用者権限 | `user` | 行がないすべての利用者に `user` を適用する |
-| 全利用者に管理者権限 | `admin` | 行がないすべての利用者に `admin` を適用する |
+| 利用を許可しない（個別のみ） | `NULL` | `AppGrant` の行がある利用者だけが入れる |
+| 全利用者に利用を許可 | `allow` | 行がないすべての利用者に入場を許可する |
 
-新規登録フォームでは既定値をあらかじめ選択せず、管理者が明示的に選択します。既存アプリの編集フォームには現在値を表示し、設定を変えずに他の項目だけを編集した場合も既定値を維持します。`NULL` は UI 上で「個別に付与した利用者のみ」と表示し、API には JSON `null` として送ります。
+新規登録フォームでは既定値をあらかじめ選択せず、管理者が明示的に選択します。既存アプリの編集フォームには現在値を表示し、設定を変えずに他の項目だけを編集した場合も既定値を維持します。`NULL` は API には JSON `null` として送ります。
 
-`admin` を新たに既定として設定するときは、保存前に「個別の例外がない現在および今後のすべての利用者に管理者権限が適用される」ことを確認します。既定の変更は、行がない利用者に対して次回のリクエストから反映されます。個別の `AppGrant` がある利用者には既定を適用しません。新しい利用者についても `AppGrant` の行は作成せず、設定済みの既定を適用します。
+`allow` を新たに既定として設定するときは、保存前に「例外がない現在および今後の全利用者に利用が付きます」と確認します。既定の変更は、行がない利用者に対して次回のリクエストから反映されます。個別の `AppGrant` がある利用者には既定を適用しません。新しい利用者についても `AppGrant` の行は作成せず、設定済みの既定を適用します。例外行の選択肢は「利用可」（`allow`）と「利用不可」（`none`）です。
 
 認証サーバー自身の `App` 行は対象外です。`isAuthServer` はデータベースに保存する列にはせず、`App.id === authEnv.appId()` に基づいて API 応答時に算出します。アプリ一覧ではこの行を固定テキストにし、更新ボタンと削除ボタンは出しません。表示するのはアプリ ID、表示名、オリジン、既定「対象外」です。`redirectUris` が空のときは「戻り先 URL」を出さず、値があるときだけ固定テキストで出します。API は、その行への `PATCH` と `DELETE` を拒否します。`pnpm db:seed` が環境変数から `name` と `origin` を上書きする処理は残します。
 
@@ -45,16 +44,14 @@ ALTER TABLE "App" ADD COLUMN "defaultPermission" TEXT NULL;
 
 | API | 入出力 |
 | --- | --- |
-| `GET /admin/apps` | 各アプリに `defaultPermission`（`null` / 現在の正の権限）と `isAuthServer`（`App.id === authEnv.appId()` で算出する真偽値）を含めて返す。UI は `isAuthServer = true` の行を固定テキストにし、値がある項目だけ出す。既定は「対象外」と表示する |
-| `POST /admin/apps` | `id`、`name`、`origin`、`redirectUris`、`defaultPermission` を受け取る。`defaultPermission` は必須で `null` または現在の正の権限一覧のいずれか。認証サーバー自身の ID は登録できない |
-| `PATCH /admin/apps/:id` | 参加アプリでは、`defaultPermission` が省略された場合は変更しない。指定時は `null` または現在の正の権限のいずれかを保存する。認証サーバー自身の行への `PATCH` は項目にかかわらず拒否する |
+| `GET /admin/apps` | 各アプリに `defaultPermission`（`null` / `allow`）と `isAuthServer`（`App.id === authEnv.appId()` で算出する真偽値）を含めて返す。UI は `isAuthServer = true` の行を固定テキストにし、値がある項目だけ出す。既定は「対象外」と表示する |
+| `POST /admin/apps` | `id`、`name`、`origin`、`redirectUris`、`defaultPermission` を受け取る。`defaultPermission` は必須で `null` または `allow`。認証サーバー自身の ID は登録できない |
+| `PATCH /admin/apps/:id` | 参加アプリでは、`defaultPermission` が省略された場合は変更しない。指定時は `null` または `allow` を保存する。認証サーバー自身の行への `PATCH` は項目にかかわらず拒否する |
 | `GET /admin/grants` | 参加アプリの例外行を返す。各行に `id`、`userId`、`appId`、`permission` を含み、`none` の行も含める。認証サーバー自身の `App.id` の行は返さない |
-| `PUT /admin/grants` | `userId`、`appId`、`permission` を受け取る。`permission` は現在の正の権限または `none`。`(userId, appId)` の行がなければ作成し、あれば権限を上書きする（upsert） |
+| `PUT /admin/grants` | `userId`、`appId`、`permission` を受け取る。`permission` は `allow` または `none`。`(userId, appId)` の行がなければ作成し、あれば利用許可を上書きする（upsert） |
 | `DELETE /admin/grants/:userId/:appId` | 例外行を削除し、対象利用者をアプリ既定の判定に戻す。認証サーバー自身の `App.id` に対する作成・更新・削除は拒否する |
 
-既定値と `AppGrant.permission` で使用できる正の権限は、[grant.md](grant.md) の正の権限一覧を唯一の基準とします。現在の値は `admin` と `user` です。空文字列、既定値への `none`、一覧にない値は `400` で拒否します。`AppGrant.permission` の `none` は個別拒否として受け付けます。認証サーバー自身のアプリへの引き渡しと、そのアプリを対象とした `AppGrant` の作成・更新・削除は拒否し、既定値によるアクセス判定も適用しません。
-
-正の権限を追加するときは、[grant.md](grant.md) の一覧と参加アプリの画面ごとのアクセス許可に加え、管理 API の入力検証、管理画面の選択肢・表示名、権限の影響を説明する確認文も同じ変更で更新します。新しい権限を既定に設定することで広範な利用者に強い権限が付与される場合は、その適用範囲が分かる確認を追加します。
+既定値と `AppGrant.permission` で使用できる値は、[grant.md](grant.md) を唯一の基準とします。正の値は `allow` だけです。空文字列、既定値への `none`、一覧にない値は `400` で拒否します。`AppGrant.permission` の `none` は個別拒否として受け付けます。認証サーバー自身のアプリへの引き渡しと、そのアプリを対象とした `AppGrant` の作成・更新・削除は拒否し、既定値によるアクセス判定も適用しません。
 
 ## 引き渡し
 
@@ -63,7 +60,7 @@ ALTER TABLE "App" ADD COLUMN "defaultPermission" TEXT NULL;
 ```text
 認証サーバーのセッションを検証
 パスキー（WebAuthnCredential）が 1 件以上
-実効権限が正の権限
+実効許可が allow
 redirect_uri が App.redirectUris と完全一致
 ```
 
@@ -75,17 +72,17 @@ redirect_uri が App.redirectUris と完全一致
 
 ## 既定と例外の操作
 
-アプリの登録時に、既定を `NULL` または正の権限に設定します。既定を `admin` にすると、例外行がない利用者もその参加アプリの管理者になります。
+アプリの登録時に、既定を `NULL` または `allow` に設定します。既定を `allow` にすると、例外行がない利用者もその参加アプリに入れます。業務ロールは付きません。
 
 行を作成するのは、例外を設定する場合だけです。
 
 | 操作 | 結果 |
 | --- | --- |
-| 既定を `user` にする | 行がない利用者には `user` が適用される。次回のリクエストから反映される |
-| 既定を `NULL` に戻す | 行がない利用者はアクセスできなくなる |
-| `admin` の行を1件作成する | その利用者だけが管理者になる |
-| `none` の行を1件作成する | その利用者は既定があってもアクセスできない |
-| 行を削除する | その利用者には既定が適用される。既定が `NULL` ならアクセスできない |
+| 既定を `allow` にする | 行がない利用者は入れる。次回のリクエストから反映される |
+| 既定を `NULL` に戻す | 行がない利用者は入れなくなる |
+| `allow` の行を1件作成する | その利用者だけが入れる。既定が `NULL` のとき |
+| `none` の行を1件作成する | その利用者は既定があっても入れない |
+| 行を削除する | その利用者には既定が適用される。既定が `NULL` なら入れない |
 | 利用者を追加する | 行は作成しない |
 | アプリを追加する | そのアプリの既定を設定する。既存利用者の行は作成しない |
 
@@ -93,6 +90,6 @@ redirect_uri が App.redirectUris と完全一致
 
 ## 認証サーバーの role
 
-`User.role` は、認証サーバー自身の管理操作を認可するためのロールです。管理画面、ユーザー招待、アプリ登録・編集、`AppGrant` の編集は、`role = admin` の利用者だけが行えます。通常の認証操作はログイン状態とパスキー状態で認可し、`role` を参加アプリの実効権限には使いません。参加アプリは `User.role` を参照せず、認証サーバー自身へのアクセス判定にも `AppGrant` を使いません。
+`User.role` は共通ロールです。ダッシュボード、アプリ登録、利用許可の編集、共通ロールの変更、アカウントの無効化は `admin` だけが行えます。ユーザー一覧と招待は `admin` と `manager` が行えます。`manager` が招待できるのは `user` だけです。利用許可の計算には `User.role` を使いません。認証サーバー自身へのアクセス判定に `AppGrant` は使いません。
 
-初期データ（seed）で作成する管理者の `role = admin` は、参加アプリの `admin` を意味しません。既定が `user` の参加アプリには、行がなくても `user` としてアクセスできます。
+参加アプリは `User.role` と `User.disabledAt` を読み、入場後の管理操作とアプリ内ロール管理に使います。共通 `admin` でも利用許可がなければ引き渡しません。seed 管理者も同じです。

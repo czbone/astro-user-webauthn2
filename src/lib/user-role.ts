@@ -6,7 +6,13 @@ const ROLE_LABEL: Record<UserRole, string> = {
   user: '一般ユーザー'
 }
 
-const ASSIGNABLE_ROLES: Record<UserRole, readonly UserRole[]> = {
+const INVITE_ROLES: Record<UserRole, readonly UserRole[]> = {
+  admin: ['user', 'manager', 'admin'],
+  manager: ['user'],
+  user: []
+}
+
+const EMAIL_CHANGE_ROLES: Record<UserRole, readonly UserRole[]> = {
   admin: ['user', 'manager', 'admin'],
   manager: ['user', 'manager'],
   user: []
@@ -35,11 +41,11 @@ export function canManageUsers(role: UserRole): boolean {
 }
 
 export function assignableRoles(actor: UserRole): readonly UserRole[] {
-  return ASSIGNABLE_ROLES[actor]
+  return INVITE_ROLES[actor]
 }
 
 export function canChangeUserEmail(actor: UserRole, targetRole: string): boolean {
-  return isUserRole(targetRole) && assignableRoles(actor).includes(targetRole)
+  return isUserRole(targetRole) && EMAIL_CHANGE_ROLES[actor].includes(targetRole)
 }
 
 export function resolveInviteRole(

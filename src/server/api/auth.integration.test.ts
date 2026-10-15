@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { prisma } from '@/lib/prisma'
 import { redis } from '@/lib/redis'
 import app from '@/server/api/app'
 import { DEVICE_INVITE_TTL_MS, authEnv } from '@/server/auth/env'
 import { sendPasswordResetMail, sendUserInviteMail } from '@/server/auth/mail'
 import { verifyPassword } from '@/server/auth/password'
-import { createSession } from '@/server/auth/session'
+import { createSession, createSessionForApp } from '@/server/auth/session'
 import { generateToken, hashToken } from '@/server/auth/tokens'
 import * as webauthn from '@/server/auth/webauthn'
 import CredentialDB from '@/server/db/credential'
@@ -27,6 +28,101 @@ describe('auth integration', () => {
     await resetDatabase()
     vi.clearAllMocks()
     vi.restoreAllMocks()
+  })
+
+  it('drops an existing session when the account is disabled', async () => {
+    const { user } = await createTestUser()
+    const { token } = await createSession(user.id)
+    await prisma.user.update({ where: { id: user.id }, data: { disabledAt: new Date() } })
+
+    const res = await app.request('/auth/me', {
+      headers: { Cookie: sessionCookieHeader(token) }
+    })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ user: null })
+    expect(await SessionDB.findValid(authEnv.appId(), hashToken(token))).toBeNull()
+  })
+
+  it('revokes every app session when a disabled account is resolved', async () => {
+    const { user } = await createTestUser()
+    const { token } = await createSession(user.id)
+    await createSessionForApp('participant-app', user.id)
+    await prisma.user.update({ where: { id: user.id }, data: { disabledAt: new Date() } })
+
+    const res = await app.request('/auth/me', {
+      headers: { Cookie: sessionCookieHeader(token) }
+    })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ user: null })
+    expect(await SessionDB.countForUser(user.id)).toBe(0)
+  })
+
+  it('rejects login method and passkey options for a disabled account without a challenge', async () => {
+    const { email, user } = await createTestUser()
+    await insertPasskeyFixture(user.id)
+    await prisma.user.update({ where: { id: user.id }, data: { disabledAt: new Date() } })
+
+    const method = await app.request('/auth/login/method', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    })
+    expect(method.status).toBe(403)
+    await expect(method.json()).resolves.toMatchObject({ error: 'このアカウントは無効です' })
+
+    const options = await app.request('/auth/login/passkey/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    })
+    expect(options.status).toBe(403)
+    await expect(options.json()).resolves.toMatchObject({ error: 'このアカウントは無効です' })
+    expect(await redis.exists(RedisKeys.challenge('auth', user.id))).toBe(0)
+    expect(await SessionDB.countForUser(user.id)).toBe(0)
+  })
+
+  it('rejects password login for a disabled account', async () => {
+    const { email, password, user } = await createTestUser()
+    await prisma.user.update({ where: { id: user.id }, data: { disabledAt: new Date() } })
+
+    const res = await app.request('/auth/login/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    })
+
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toMatchObject({ error: 'このアカウントは無効です' })
+    expect(await SessionDB.countForUser(user.id)).toBe(0)
+  })
+
+  it('does not issue a session from a magic link or password reset while the account is disabled', async () => {
+    const { user } = await createTestUser()
+    const magic = generateToken()
+    const reset = generateToken()
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
+    await MagicLinkDB.create(user.id, hashToken(magic), expiresAt)
+    await PasswordResetDB.create(user.id, hashToken(reset), expiresAt)
+    await prisma.user.update({ where: { id: user.id }, data: { disabledAt: new Date() } })
+
+    const magicRes = await app.request('/auth/magic/consume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: magic })
+    })
+    expect(magicRes.status).toBe(403)
+    expect(await MagicLinkDB.findValidByTokenHash(hashToken(magic))).not.toBeNull()
+
+    const resetRes = await app.request('/auth/password-reset/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: reset, password: 'new-password-123' })
+    })
+    expect(resetRes.status).toBe(403)
+    expect(await PasswordResetDB.findValidByTokenHash(hashToken(reset))).not.toBeNull()
+    expect(await SessionDB.countForUser(user.id)).toBe(0)
   })
 
   it('logs in with password and creates a session', async () => {
