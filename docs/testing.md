@@ -47,7 +47,7 @@ pnpm db:generate
 pnpm test:integration
 ```
 
-`TEST_DATABASE_URL` 未設定のときは分かりやすいエラーで失敗します。開発用 `DATABASE_URL` とは別 DB を使ってください。統合テストは `REDIS_KEY_PREFIX` を自動設定し、テスト間で Redis キーを掃除します。
+`TEST_DATABASE_URL` が未設定の場合は、明確なエラーメッセージを表示して失敗します。開発用の `DATABASE_URL` とは別の DB を使ってください。統合テストでは `REDIS_KEY_PREFIX` を自動設定し、テスト間に Redis キーを削除します。
 
 単体と統合をまとめて実行する場合:
 
@@ -88,7 +88,7 @@ pnpm db:seed
 pnpm dev
 ```
 
-`pnpm dev` は待受 URL として `http://localhost:3000` を表示します。ページを開くと、開発中は認証サーバーのオリジン `http://auth.localhost:3000` へ移ります。ログインとパスキー登録はこのホストで行います。`localhost` のまま変更リクエストを送ると `Origin` が一致せず、「オリジンが不正です」になります。
+`pnpm dev` は待受 URL として `http://localhost:3000` を表示します。ページを開くと、開発中は認証サーバーのオリジン `http://auth.localhost:3000` に移動します。ログインとパスキー登録はこのホストで行います。`localhost` のまま更新リクエストを送ると `Origin` が一致せず、「オリジンが不正です」というエラーになります。
 
 seed 管理者（`.env` の `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`）は、メールアドレスを入れて「続行」したあと、表示されたパスワード欄に `SEED_ADMIN_PASSWORD` を入れてログインし、パスキーを登録してください。参加アプリに入れるかは、アプリの既定の利用許可と例外の `AppGrant` で決まります。認証サーバー自身には `AppGrant` を付けません。
 

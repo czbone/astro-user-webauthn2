@@ -1,6 +1,6 @@
 # Redis 仕様
 
-セッションと短命データの Redis ストア設計です。セッションの振る舞い（Cookie・スライディング・失効）は [session-management.md](./session-management.md) を参照してください。
+セッションと有効期間の短いデータを保存する Redis の設計です。セッションの動作（Cookie、スライディング更新、失効）については、[session-management.md](./session-management.md) を参照してください。
 
 ## 役割
 
@@ -9,7 +9,7 @@
 | PostgreSQL | `User`, `WebAuthnCredential`, `App`, `AppGrant` |
 | Redis | Session、WebAuthn challenge / reauth-ok、Rate limit、DeviceInvite、PasswordReset、MagicLink、EmailChange |
 
-クライアントは `ioredis` を想定し、接続はプロセス内シングルトンとする（開発時の HMR では `globalThis` 再利用を推奨）。
+クライアントには `ioredis` を想定し、接続はプロセス内のシングルトンとします。開発時の HMR では `globalThis` を再利用することを推奨します。
 
 ## 環境変数
 
@@ -19,9 +19,9 @@
 | `REDIS_KEY_PREFIX` | 任意 | （空） | 全キーの先頭に付与する prefix（共有 Redis・環境分離用） |
 | `SESSION_MAX_AGE_SECONDS` | 任意 | `2592000` | セッション TTL（秒）。Cookie Max-Age と一致させる |
 
-ローカル起動時は Redis が利用可能であること（例: ローカルインストールまたは Docker）。`REDIS_URL` 未設定時の開発既定は `redis://localhost:6379/`。
+ローカルで起動する場合は、Redis が利用可能である必要があります（ローカルへのインストールまたは Docker の利用など）。`REDIS_URL` が未設定の場合、開発時は `redis://localhost:6379/` に接続します。
 
-実際の Redis キーは `{REDIS_KEY_PREFIX}{論理キー}` とする。以下の表記は論理キー（prefix 未適用）を指す。
+実際の Redis キーは `{REDIS_KEY_PREFIX}{論理キー}` です。以下では、prefix 適用前の論理キーを記載します。
 
 ## キー命名と TTL
 
@@ -120,7 +120,7 @@
 }
 ```
 
-EmailChange の値は、確定前の新しいアドレスと受信時刻を足す。未受信の `verifiedAt` は null。
+EmailChange の値には、確定前の新しいメールアドレスと受信確認時刻を含めます。未確認の場合、`verifiedAt` は `null` です。
 
 ```json
 {
@@ -186,7 +186,9 @@ DATABASE_URL="postgresql://app_participant:replace-me@localhost:5432/database_na
 
 Redis の ACL ユーザーは、全参加アプリで `app_participant` の1人です。アプリごとに作りません。認証サーバーの `REDIS_URL` は、これまでどおり読み書きできるユーザー（Coolify の Redis リソースが渡すユーザーを含む）のままです。
 
-`PARTICIPANT_REDIS_PASSWORD` があるとき、プロセス起動後の最初の HTTP リクエストの直前に、認証サーバーの `REDIS_URL` で `app_participant` を上書きします。`entrypoint.sh` では作りません。同じプロセスでは一度だけです。再起動すると、次のリクエストで再び上書きします。未設定なら作りません。パスワードは PostgreSQL の `app_participant` とは別です。Redis 7 のセレクタで、パターンごとにコマンドを分けます。`KEYS` と `SCAN` は与えません。セッションの `SET` と索引への `SADD` も与えません。参加アプリのサーバが侵害されても、パスキーと引き渡しを通さず、実効権限がある利用者のセッションを作らせないためです。
+`PARTICIPANT_REDIS_PASSWORD` が設定されている場合、プロセス起動後、最初の HTTP リクエストを処理する直前に、認証サーバーの `REDIS_URL` を使って `app_participant` のパスワードを設定します。この設定は `entrypoint.sh` では行わず、同一プロセス内では一度だけ実行します。プロセスを再起動すると、次のリクエストの処理前に再度設定します。環境変数が未設定の場合は、ユーザーを作成・更新しません。ここで設定するパスワードは、PostgreSQL の `app_participant` のパスワードとは別のものです。
+
+Redis 7 の ACL セレクターを使い、キーのパターンごとに許可するコマンドを指定します。`KEYS` と `SCAN` は許可しません。また、セッションキーの `SET` とユーザー索引への `SADD` も許可しません。これにより、参加アプリのサーバーが侵害された場合でも、パスキー認証と認証サーバーからの引き渡しを経ずにセッションを作成されることを防ぎます。
 
 - `sess:*` の GET、EXPIRE、DEL
 - `handoff:*` の GET、GETDEL、DEL

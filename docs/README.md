@@ -7,4 +7,4 @@
 | [redis.md](./redis.md) | Redis キー設計・TTL・環境変数・障害時の挙動 |
 | [testing.md](./testing.md) | テスト方法（`pnpm test` / `pnpm test:integration`・静的チェック・手動検証） |
 
-補足の下書きは `planning/specification.md` にも残していますが、実装の正本は本ディレクトリです。
+補足の下書きは `planning/specification.md` にも残っていますが、実装の正本は本ディレクトリの文書です。
