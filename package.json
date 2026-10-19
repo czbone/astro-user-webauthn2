@@ -23,22 +23,22 @@
     "env:check:build": "esbuild src/server/env-check.ts --bundle --platform=node --format=esm --outfile=dist/env-check.mjs"
   },
   "dependencies": {
-    "@astrojs/node": "^11.1.7",
-    "@astrojs/react": "^7.0.1",
-    "@prisma/adapter-pg": "^7.10.0",
-    "@prisma/client": "^7.10.0",
+    "@astrojs/node": "^11.1.8",
+    "@astrojs/react": "^7.1.0",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "@simplewebauthn/browser": "^14.0.0",
     "@simplewebauthn/server": "^14.0.3",
-    "astro": "^7.3.8",
-    "dotenv": "^18.0.7",
+    "astro": "^7.4.0",
+    "dotenv": "^18.0.8",
     "flowbite": "^4.0.2",
     "hono": "^4.13.13",
     "ioredis": "^6.0.0",
-    "nodemailer": "^10.1.0",
+    "nodemailer": "^10.1.7",
     "pg": "^8.23.1",
-    "prisma": "^7.10.0",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "prisma": "^7.10.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -50,7 +50,7 @@
     "@typescript-eslint/parser": "^8.71.2",
     "astro-eslint-parser": "^3.2.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.12.0",
+    "eslint": "^10.13.0",
     "eslint-plugin-astro": "^3.2.1",
     "globals": "^17.13.0",
     "prettier": "^3.9.10",
@@ -60,6 +60,6 @@
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.5"
   }
 }
