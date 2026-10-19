@@ -180,9 +180,11 @@ PostgreSQL では、参加アプリ用ロールに次の `SELECT` だけを与�
 DATABASE_URL="postgresql://app_participant:replace-me@localhost:5432/database_name?schema=public"
 ```
 
-`replace-me` は `CREATE ROLE` で決めたパスワードです。`database_name` は認証サーバーの `DATABASE_URL` と同じデータベース名です。認証サーバーの `DATABASE_URL` は、読み書きできる既存のユーザーのままにします。
+`replace-me` は `CREATE ROLE` で決めたパスワードです。`database_name` は認証サーバーの `DATABASE_URL` と同じデータベース名です。認証サーバーの `DATABASE_URL` は、読み書きできる既存のユーザーのままにします。上の `schema=public` は、共有テーブルを参照する接続です。
 
-共有テーブル（`User`、`WebAuthnCredential`、`App`、`AppGrant`）のマイグレーションは認証サーバーだけが行います。参加アプリ用ロールは `SELECT` だけなので、この接続ではテーブルを作成しません。アプリ固有のテーブルを書き始めるときは、そのテーブルへの書き込みをそのアプリのロールだけに与えます。
+共有テーブル（`User`、`WebAuthnCredential`、`App`、`AppGrant`、`RoleChange`）は `public` にあり、マイグレーションは認証サーバーだけが行います。参加アプリ用ロールは `SELECT` だけなので、この接続ではテーブルを作成しません。`RoleChange` は参加アプリに `SELECT` を与えません。
+
+アプリ固有のテーブルは、アプリごとに `public` 以外の PostgreSQL スキーマへ置き、そのアプリが自分の Prisma 定義からマイグレーションします。両方の Prisma が `public` を管理すると、相手のテーブルを差分とみなします。分担は [specification.md](./specification.md) の「データベースの分担」に従います。固有テーブルへの書き込みは、そのアプリのスキーマにだけ与えます。`app_participant` の接続では、そのスキーマを作成しません。
 
 Redis の ACL ユーザーは、全参加アプリで `app_participant` の1人です。アプリごとに作りません。認証サーバーの `REDIS_URL` は、これまでどおり読み書きできるユーザー（Coolify の Redis リソースが渡すユーザーを含む）のままです。
 

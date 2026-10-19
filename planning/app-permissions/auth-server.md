@@ -4,7 +4,7 @@
 
 ## スキーマ
 
-マイグレーションは認証サーバーが実行し、参加アプリは実行しません。
+共有テーブルのマイグレーションは認証サーバーが実行し、参加アプリは実行しません。アプリ固有テーブルの分担は [docs/specification.md](../../docs/specification.md) の「データベースの分担」に従います。
 
 ```sql
 ALTER TABLE "App" ADD COLUMN "defaultPermission" TEXT NULL;
