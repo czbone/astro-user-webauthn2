@@ -68,7 +68,7 @@
 |------|-------|
 | 作成 | `SET sess:{appId}:{tokenHash} JSON EX ttl` + `SADD sess:user:{userId} {appId}/{tokenHash}`（索引 SET にも適切な TTL を付与または更新） |
 | 検証成功 | 認証サーバーではパスキーがあり、無効でないときだけ `EXPIRE sess:{appId}:{tokenHash} ttl` + Cookie Max-Age 再設定。入場に `AppGrant` は使わない。引き渡しは実効許可が `allow` のときだけ参加アプリのセッションを作り、付与なしのときは認証サーバーの TTL も延ばさない |
-| ログアウト | `DEL sess:{appId}:{tokenHash}` + `SREM sess:user:{userId} {appId}/{tokenHash}` |
+| ログアウト | 全失効と同じ。操作したホストの Cookie も削除する |
 | 全失効 | `SMEMBERS sess:user:{userId}` → 各 `DEL sess:{appId}:{hash}` → `DEL sess:user:{userId}` |
 
 キー不存在または TTL 切れは未認証とみなす。明示的な `revokedAt` は持たない。
@@ -194,14 +194,14 @@ Redis 7 の ACL セレクターを使い、キーのパターンごとに許可�
 
 - `sess:*` の GET、EXPIRE、DEL
 - `handoff:*` の GET、GETDEL、DEL
-- `sess:user:*` の SREM
+- `sess:user:*` の SREM、SMEMBERS、DEL
 
-各参加アプリの実装が操作するのは、自分の `sess:{appId}:*` と `handoff:{appId}:*` だけです。ACL はアプリごとの分離を強制しません。引き渡しコードの消費は `GETDEL` です。
+各参加アプリの実装が普段操作するのは、自分の `sess:{appId}:*` と `handoff:{appId}:*` だけです。ログアウトでは、ユーザー索引から得た他アプリのセッションキーも削除します。ACL はアプリごとの分離を強制しません。引き渡しコードの消費は `GETDEL` です。
 
 `REDIS_KEY_PREFIX` があるときは、各パターンの先頭にそのプレフィックスを付けます。プレフィックスが空のときのコマンドは次です。
 
 ```text
-ACL SETUSER app_participant reset on >password (~sess:* +get +expire +del) (~handoff:* +get +getdel +del) (~sess:user:* +srem)
+ACL SETUSER app_participant reset on >password (~sess:* +get +expire +del) (~handoff:* +get +getdel +del) (~sess:user:* +srem +smembers +del)
 ```
 
 参加アプリの `REDIS_URL` は、このユーザーで同じ Redis へ接続します。

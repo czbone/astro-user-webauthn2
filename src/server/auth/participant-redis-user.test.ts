@@ -21,7 +21,7 @@ describe('participant redis user', () => {
       '>secret',
       '(~sess:* +get +expire +del)',
       '(~handoff:* +get +getdel +del)',
-      '(~sess:user:* +srem)'
+      '(~sess:user:* +srem +smembers +del)'
     ])
   })
 
@@ -34,7 +34,7 @@ describe('participant redis user', () => {
       '>secret',
       '(~dev:sess:* +get +expire +del)',
       '(~dev:handoff:* +get +getdel +del)',
-      '(~dev:sess:user:* +srem)'
+      '(~dev:sess:user:* +srem +smembers +del)'
     ])
   })
 

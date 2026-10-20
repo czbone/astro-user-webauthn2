@@ -163,9 +163,8 @@ Session / Invite / Reset / Magic のトークンは、平文のまま Cookie・U
 | 属性                         | Secure / HttpOnly / SameSite=Lax / Path=/ / Domain なし / Max-Age=2592000             |
 | 方式                         | 永続 Cookie + Redis 検証、スライディング 30 日                                        |
 | Token                        | 通常アクセスでは変更しない（Cookie Max-Age と Redis TTL のみ更新）                    |
-| ログアウト                   | Cookie 削除 + 当該 Session キー削除（他アプリ・他デバイスは残す）                     |
-| すべてのアプリからログアウト | ユーザー索引の全要素を削除し、認証サーバーの Cookie を削除する                        |
-| 全失効                       | `sess:user:{userId}` 経由で全キー削除（パスワード再設定時、招待マジックリンク再送時、メールアドレス変更の確定時、アカウント無効化時、無効化の再実行時、無効ユーザーのセッション解決時） |
+| ログアウト                   | ユーザー索引の全要素を削除し、操作したホストの Cookie を削除する。他ホストの Cookie は、次のリクエストでキーが無いことを確認して削除する |
+| 全失効                       | `sess:user:{userId}` 経由で全キー削除（ログアウト、パスワード再設定時、招待マジックリンク再送時、メールアドレス変更の確定時、アカウント無効化時、無効化の再実行時、無効ユーザーのセッション解決時） |
 
 詳細は [session-management.md](./session-management.md)。
 
@@ -187,7 +186,7 @@ Session / Invite / Reset / Magic のトークンは、平文のまま Cookie・U
 - `POST /magic/resend` — パスキー 0 件のときだけ再発行。発行時は既存 Session を全削除
 - `POST /password-reset/request|confirm` — パスキー不能時の復旧。confirm 確定時に全 Credential 削除。自動化しない（新パスワード入力が必要）
 - `POST /email-change/verify` — メールアドレス変更の受信確認。セッションは発行しない。`User.email` は変えない
-- `POST /logout` / `POST /logout-all` / `GET /me`
+- `POST /logout` / `GET /me`
 - `GET /auth/handoff` — 参加アプリへのセッション引き渡し（`/api` の外）
 
 ### 管理者 `/api/admin`

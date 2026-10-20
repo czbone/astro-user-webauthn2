@@ -109,12 +109,6 @@ class AuthFetch {
     if (!res) return null
     return { response: res, data: await readJson<{ ok?: boolean; error?: string }>(res) }
   }
-
-  async logoutAll() {
-    const res = await apiFetch('/auth/logout-all', { method: 'POST', body: '{}' })
-    if (!res) return null
-    return { response: res, data: await readJson<{ ok?: boolean; error?: string }>(res) }
-  }
 }
 
 export default new AuthFetch()

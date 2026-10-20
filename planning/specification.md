@@ -156,17 +156,19 @@ Cookieが何らかの理由で残っていても、Redis側でキーが無けれ
 
 ### 7. ログアウト
 
-ユーザーがログアウトした場合は、
+ユーザーがログアウトした場合は、そのユーザーの全セッションを失効します。対象は全アプリ、全ブラウザ、全端末です。
 
 ```text
-当該SessionのRedisキーを削除
+SMEMBERS sess:user:{userId}
      ↓
-Cookie削除
+各 sess:{appId}:{tokenHash} を DEL
+     ↓
+sess:user:{userId} を DEL
+     ↓
+操作したホストの Cookie を削除
 ```
 
-とします。
-
-Cookieを削除し、Redis上のそのSessionも削除します。他デバイスのSessionには影響しません。
+他ホストの Cookie は、次のリクエストでキーが無いことを確認して削除します。詳細は [global-logout.md](./global-logout.md) です。
 
 ---
 

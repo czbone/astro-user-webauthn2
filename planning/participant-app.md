@@ -15,7 +15,7 @@
 | 未ログインの画面を認証サーバーの引き渡しへ送る | ログイン画面、パスキー儀式、ユーザー作成 |
 | `/callback` で引き渡しコードを消費し、自ホストのセッション Cookie を発行する | セッションの Redis `SET`、ユーザー索引への `SADD` |
 | リクエストごとにセッション、パスキー有無、`AppGrant` を確認する | `App` / `AppGrant` の作成・更新・削除 |
-| 自分のログアウト | 他アプリのセッション削除、認証サーバーのログアウト |
+| ログアウト（そのユーザーの全セッション失効） | 認証サーバーの HTTP 呼び出し |
 
 パスキーの登録が終わるまで、認証サーバーは引き渡しを発行しません。参加アプリにセッションが届くのは、Credential が 1 件以上あり、実効許可が `allow` のユーザーだけです。その後にパスキーが消えた、無効化された、または付与が外れた場合は、セクション 3 で扱います。
 
@@ -156,7 +156,7 @@ Cookie の属性はセクション 7 です。
 - `EXPIRE sess:{APP_ID}:{tokenHash} SESSION_MAX_AGE_SECONDS`
 - `__Host-session` の Max-Age を同じ秒数で再設定する。トークンの値は変えません
 
-ユーザー索引 `sess:user:{userId}` の `EXPIRE` は行いません。参加アプリの Redis 権限に含まれません。索引からの削除はログアウト時の `SREM` だけです。
+ユーザー索引 `sess:user:{userId}` の `EXPIRE` は行いません。索引の `SMEMBERS` と `DEL` は、セクション 8 のログアウトだけです。
 
 認証サーバーのページ解決が付与確認より先に TTL を延ばす実装があっても、参加アプリはセクション 3 の順に従います。
 
@@ -174,14 +174,21 @@ Cookie の属性はセクション 7 です。
 
 ## 8. ログアウト
 
-`POST /logout` だけです。`Origin` が `APP_ORIGIN` と完全一致するときだけ処理します。
+`POST /logout` だけです。`Origin` が `APP_ORIGIN` と完全一致するときだけ処理します。認証サーバーの HTTP は呼びません。効果は [global-logout.md](./global-logout.md) と同じで、そのユーザーの全セッション失効です。
 
-セッションがあるときは、次を行います。
+セッションがあるときは、`userId` を自分の `sess:{APP_ID}:{tokenHash}` から読み、次を行います。
 
-- `DEL sess:{APP_ID}:{tokenHash}`
-- `SREM sess:user:{userId} {APP_ID}/{tokenHash}`
+```text
+SMEMBERS sess:user:{userId}
+  ↓
+各 sess:{appId}:{tokenHash} を DEL
+  ↓
+sess:user:{userId} を DEL
+```
 
-`__Host-session` と `__Host-handoff` を削除し、`/logged-out` へ 303 します。他アプリのセッションは残します。認証サーバーのログアウトは呼びません。
+索引に含まれる他アプリのキーも、このログアウトでは削除します。普段の検証で他アプリのキーは消しません。
+
+`__Host-session` と `__Host-handoff` を削除し、`/logged-out` へ 303 します。
 
 ## 9. 環境変数
 
@@ -218,9 +225,9 @@ PostgreSQL のひな型は [participant-access.sql](./participant/participant-ac
 | `App`、`AppGrant` | `SELECT` |
 | `sess:*` | `GET`、`EXPIRE`、`DEL` |
 | `handoff:*` | `GET`、`GETDEL`、`DEL` |
-| `sess:user:*` | `SREM` |
+| `sess:user:*` | `SREM`、`SMEMBERS`、`DEL` |
 
-Redis ユーザーは全参加アプリで共通です。このアプリが操作するのは `sess:{APP_ID}:*` と `handoff:{APP_ID}:*` だけです。`password`、`publicKey`、`counter`、`credentialId`、`transports` は与えません。`role` と `disabledAt` は与えます。セッションの `SET` と、ユーザー索引への `SADD` も与えません。コードの消費は `GETDEL` です。`GET` のあとに `DEL` する実装にはしません。
+Redis ユーザーは全参加アプリで共通です。普段操作するのは `sess:{APP_ID}:*` と `handoff:{APP_ID}:*` だけです。ログアウトでは、索引から得た他アプリのセッションキーも削除します。`password`、`publicKey`、`counter`、`credentialId`、`transports` は与えません。`role` と `disabledAt` は与えます。セッションの `SET` と、ユーザー索引への `SADD` も与えません。コードの消費は `GETDEL` です。`GET` のあとに `DEL` する実装にはしません。
 
 ## 11. ローカル開発
 
@@ -238,5 +245,6 @@ Redis ユーザーは全参加アプリで共通です。このアプリが操�
 - 実効許可が `allow` でないユーザーには、既存セッションの TTL を延ばさない
 - 入場は利用許可、業務操作はアプリ内ロール、管理操作とロール管理は共通ロールで分ける
 - 更新リクエストは自オリジンの `Origin` だけを受ける
+- ログアウトは、そのユーザーの全セッションを失効する
 - ログアウト後の完了画面から、引き渡しを自動では開始しない
 - パスキー儀式の origin は認証サーバーだけ

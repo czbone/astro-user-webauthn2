@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server'
-import { PASSWORD_RESET_TTL_MS, authEnv } from '@/server/auth/env'
+import { PASSWORD_RESET_TTL_MS } from '@/server/auth/env'
 import { markEmailChangeReceived } from '@/server/auth/email-change'
 import { issueInviteMagicLink } from '@/server/auth/magic-link'
 import { sendPasswordResetMail } from '@/server/auth/mail'
@@ -9,7 +9,6 @@ import { checkRateLimit } from '@/server/auth/rate-limit'
 import {
   clearSessionCookieOnContext,
   createSession,
-  getSessionTokenFromRequest,
   setSessionCookieOnContext
 } from '@/server/auth/session'
 import { generateToken, hashToken } from '@/server/auth/tokens'
@@ -424,24 +423,10 @@ auth.post('/magic/resend', async (c) => {
   }
 })
 
-auth.post('/logout-all', requireAuth, async (c) => {
+auth.post('/logout', requireAuth, async (c) => {
   try {
     const user = c.get('user')
     await SessionDB.revokeAllForUser(user.id)
-    clearSessionCookieOnContext(c)
-    return c.json({ ok: true }, 200)
-  } catch (error) {
-    console.error('全ログアウトエラー:', error)
-    return c.json({ error: 'ログアウトに失敗しました' }, 500)
-  }
-})
-
-auth.post('/logout', requireAuth, async (c) => {
-  try {
-    const token = getSessionTokenFromRequest(c)
-    if (token) {
-      await SessionDB.revoke(authEnv.appId(), hashToken(token))
-    }
     clearSessionCookieOnContext(c)
     return c.json({ ok: true }, 200)
   } catch (error) {

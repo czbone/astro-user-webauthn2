@@ -16,7 +16,7 @@
 | 要入場 | `/posts/new`、`/roles`、`/account` | [participant-app.md](./participant-app.md) セクション 4 の引き渡し | 401「ログインが必要です」。引き渡しは開始しない |
 | 引き渡しの例外 | `/callback`、`/logged-out` | [participant-app.md](./participant-app.md) のとおり。公開にはしない | 同左 |
 
-公開は GET と HEAD だけです。POST、PUT、PATCH、DELETE は要入場です。`POST /logout` は [participant-app.md](./participant-app.md) セクション 8 のまま、公開画面からでも送れます。
+公開は GET と HEAD だけです。POST、PUT、PATCH、DELETE は要入場です。`POST /logout` は [participant-app.md](./participant-app.md) セクション 8 で、公開画面からでも送れます。
 
 ## 2. 公開画面でのセッション
 

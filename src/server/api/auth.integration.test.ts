@@ -793,36 +793,23 @@ describe('auth integration', () => {
     expect(after).toBeGreaterThan(1000)
   })
 
-  it('revokes single session on logout (others remain active)', async () => {
-    const { user } = await createTestUser()
-    const a = await createSession(user.id)
-    const b = await createSession(user.id)
-
-    const logoutRes = await app.request('/auth/logout', {
-      method: 'POST',
-      headers: { Cookie: sessionCookieHeader(a.token) }
-    })
-    expect(logoutRes.status).toBe(200)
-
-    expect(await SessionDB.findValid(authEnv.appId(), hashToken(a.token))).toBeNull()
-    expect(await SessionDB.findValid(authEnv.appId(), hashToken(b.token))).toBeTruthy()
-    expect(await SessionDB.countForUser(user.id)).toBe(1)
-  })
-
-  it('revokes every app session on logout-all', async () => {
+  it('revokes every session on logout, including other apps and devices', async () => {
     const { user } = await createTestUser()
     await insertPasskeyFixture(user.id)
     const authSession = await createSession(user.id)
+    const otherDevice = await createSession(user.id)
     const otherHash = hashToken(generateToken())
     await SessionDB.create('posts', user.id, otherHash)
 
-    const res = await app.request('/auth/logout-all', {
+    const res = await app.request('/auth/logout', {
       method: 'POST',
       headers: { Cookie: sessionCookieHeader(authSession.token) }
     })
     expect(res.status).toBe(200)
     expect(await SessionDB.findValid(authEnv.appId(), hashToken(authSession.token))).toBeNull()
+    expect(await SessionDB.findValid(authEnv.appId(), hashToken(otherDevice.token))).toBeNull()
     expect(await SessionDB.findValid('posts', otherHash)).toBeNull()
+    expect(await SessionDB.countForUser(user.id)).toBe(0)
   })
 
   it('rejects a mutating request without Origin', async () => {

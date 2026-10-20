@@ -17,7 +17,7 @@ export function participantRedisAclCommand(password: string, prefix = ''): strin
     `>${password}`,
     `(~${prefix}sess:* +get +expire +del)`,
     `(~${prefix}handoff:* +get +getdel +del)`,
-    `(~${prefix}sess:user:* +srem)`
+    `(~${prefix}sess:user:* +srem +smembers +del)`
   ]
 }
 
