@@ -1,5 +1,7 @@
 # Astro User WebAuthn
 
+リポジトリの読み方は [`AGENTS.md`](AGENTS.md)、仕様は [`docs/`](docs/README.md) です。
+
 Astro 7（SSR）+ Hono + Prisma 7 + PostgreSQL + Redis による、管理者招待制のパスキー（WebAuthn）認証アプリケーションです。
 
 詳細仕様は [`docs/specification.md`](docs/specification.md)、[`docs/session-management.md`](docs/session-management.md)、[`docs/redis.md`](docs/redis.md) を参照してください。テスト方法は [`docs/testing.md`](docs/testing.md) を参照してください。

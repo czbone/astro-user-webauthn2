@@ -11,6 +11,8 @@ alwaysApply: true
 - スタイルは Tailwind CSS 4。パッケージマネージャは pnpm。
 - 仕様の正本: `docs/specification.md`、`docs/session-management.md`、`docs/redis.md`。
 
+ディレクトリの役割と資料の優先順位は `AGENTS.md` に従う。
+
 ## 配置
 
 - ページ: `src/pages` / React: `src/components` / 共通: `src/lib`
