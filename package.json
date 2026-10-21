@@ -23,13 +23,13 @@
     "env:check:build": "esbuild src/server/env-check.ts --bundle --platform=node --format=esm --outfile=dist/env-check.mjs"
   },
   "dependencies": {
-    "@astrojs/node": "^11.1.8",
+    "@astrojs/node": "^11.1.9",
     "@astrojs/react": "^7.1.0",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "@simplewebauthn/browser": "^14.0.0",
     "@simplewebauthn/server": "^14.0.3",
-    "astro": "^7.4.0",
+    "astro": "^7.4.1",
     "dotenv": "^18.0.8",
     "flowbite": "^4.0.2",
     "hono": "^4.13.13",
@@ -47,7 +47,7 @@
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
-    "@typescript-eslint/parser": "^8.71.2",
+    "@typescript-eslint/parser": "^8.72.0",
     "astro-eslint-parser": "^3.2.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
@@ -59,7 +59,7 @@
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.2",
+    "typescript-eslint": "^8.72.0",
     "vitest": "^5.0.5"
   }
 }
