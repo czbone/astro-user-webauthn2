@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { redis } from '@/lib/redis'
 import { handleHandoff } from '@/server/auth/handoff'
 import { authEnv } from '@/server/auth/env'
+import { redisKey } from '@/server/auth/redis-env'
 import { hashToken } from '@/server/auth/tokens'
 import { createSession } from '@/server/auth/session'
 import { RedisKeys } from '@/server/redis/keys'
@@ -179,5 +180,30 @@ describe('handoff', () => {
     )
     expect(missing.status).toBe(403)
     expect(await redis.keys(RedisKeys.handoff('posts', '*'))).toEqual([])
+  })
+
+  it('does not hand off to the localhost apex', async () => {
+    const { cookie } = await authCookie()
+    const origin = 'http://localhost:4000'
+    const redirectUri = `${origin}/callback`
+    await prisma.app.create({
+      data: {
+        id: 'apex',
+        name: '頂点',
+        origin,
+        redirectUris: [redirectUri],
+        defaultPermission: 'allow'
+      }
+    })
+
+    const res = await handoffApp.request(
+      `/auth/handoff?app=apex&redirect_uri=${encodeURIComponent(redirectUri)}&state=state-1`,
+      { headers: { Cookie: cookie } }
+    )
+
+    expect(res.status).toBe(403)
+    expect(await res.text()).toContain('引き渡し先のアプリを利用できません')
+    expect(await redis.keys(RedisKeys.handoff('apex', '*'))).toEqual([])
+    expect(await redis.keys(redisKey('sess:apex:*'))).toEqual([])
   })
 })

@@ -27,6 +27,13 @@ export function isDirectChildHost(host: string, parentDomain: string): boolean {
   return HOST_LABEL.test(label)
 }
 
+export function isParticipatingAppHost(host: string, parentDomain: string): boolean {
+  const hostname = host.toLowerCase()
+  const parent = parentDomain.toLowerCase()
+  if (hostname === parent) return parent !== 'localhost'
+  return isDirectChildHost(hostname, parent)
+}
+
 export function normalizeOrigin(value: string): string | null {
   let url: URL
   try {

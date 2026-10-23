@@ -1,8 +1,6 @@
 # 参加アプリの頂点ドメイン
 
-本ファイルは、参加アプリのホストに `PARENT_DOMAIN` 自身を許す変更の下書きです。ログイン、引き渡し、Cookie、パスキーは [multi-app-auth.md](./multi-app-auth.md)、[participant-app.md](./participant-app.md)、[specification.md](../docs/specification.md)、[session-management.md](../docs/session-management.md) に従います。本ファイルが変えるのは、参加アプリのホストとして許す名前だけです。
-
-これは下書きです。確定するまでは [multi-app-auth.md](./multi-app-auth.md) の「頂点ドメインは拒否する」が優先します。確定するときは、まず `docs/specification.md` を更新し、その内容に合わせてルールファイルも更新します。
+本ファイルは、参加アプリのホストに `PARENT_DOMAIN` 自身を許す変更の記録です。確定したホスト規則は [specification.md](../docs/specification.md) にあります。ログイン、引き渡し、Cookie、パスキーは [multi-app-auth.md](./multi-app-auth.md)、[participant-app.md](./participant-app.md)、[specification.md](../docs/specification.md)、[session-management.md](../docs/session-management.md) に従います。本ファイルが変えるのは、参加アプリのホストとして許す名前だけです。
 
 ## 1. 変えること
 
@@ -74,9 +72,9 @@ foo.app.example.com    拒否
 - 開発のホスト。`PARENT_DOMAIN=localhost` では `auth.localhost` と `app.localhost` のように直下の名前で分ける。`localhost` はポートを区別しないため、頂点にはしない
 - ログアウト、利用許可、共通ロール
 
-## 7. 確定時に更新する箇所
+## 7. 確定時に更新した箇所
 
-確定した内容は次へ反映します。
+確定した内容は次へ反映しています。
 
 | 箇所 | 反映 |
 |------|------|

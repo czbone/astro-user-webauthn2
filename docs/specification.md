@@ -199,7 +199,7 @@ Session / Invite / Reset / Magic のトークンは、平文のまま Cookie・U
 - `POST /email-changes/:userId/commit`（受信済みの記録にあるアドレスだけを書き、対象の全セッションを失効する。申請者と別人でもよい。確定直前に対象ロールを読み直し、manager は対象が `admin` なら拒否する）
 - `GET /stats`（ユーザー数と、有効な admin の人数）
 - `GET /apps` は各アプリに `defaultPermission`（`null` または `allow`）と `isAuthServer` を含める。認証サーバーの行は固定テキストで、値がある項目だけ出す
-- `POST /apps` は `id`、`name`、`origin`、`redirectUris`、`defaultPermission` を受け取る。`defaultPermission` は必須で `null` または `allow`。認証サーバー自身の ID は登録できない
+- `POST /apps` は `id`、`name`、`origin`、`redirectUris`、`defaultPermission` を受け取る。`defaultPermission` は必須で `null` または `allow`。認証サーバー自身の ID は登録できない。ホストは親ドメイン自身か直下の1ラベルで、引き渡しと同じ規則で判定する
 - `PATCH /apps/:id` は、参加アプリでは `defaultPermission` を省略すると変えない。指定時は `null` または `allow`。`id` と `origin` は変更しない。認証サーバー自身への `PATCH` は拒否する
 - `DELETE /apps/:id` は認証サーバー自身を削除しない
 - `GET /grants` は参加アプリの例外行（`none` を含む）を返す。認証サーバー自身の行は返さない
@@ -216,7 +216,7 @@ Session / Invite / Reset / Magic のトークンは、平文のまま Cookie・U
 
 ### 引き渡し `GET /auth/handoff`
 
-セッションを作る条件は、認証サーバーの有効なセッション、Credential が 1 件以上、対象アプリの実効許可が `allow`、`redirect_uri` が `App.redirectUris` と完全一致。`appId` が認証サーバー自身、または戻り先のオリジンが認証サーバーと同じときは拒否する。実効許可が付与なしのときはセッションを作らず 403「引き渡し先のアプリを利用できません」。このとき認証サーバーのセッション TTL も延ばさない。共通ロールだけでは引き渡さない。
+セッションを作る条件は、認証サーバーの有効なセッション、Credential が 1 件以上、対象アプリの実効許可が `allow`、`redirect_uri` が `App.redirectUris` と完全一致。対象アプリのホストは登録と同じ規則で判定する。`appId` が認証サーバー自身、または戻り先のオリジンが認証サーバーと同じときは拒否する。実効許可が付与なしのときはセッションを作らず 403「引き渡し先のアプリを利用できません」。このとき認証サーバーのセッション TTL も延ばさない。共通ロールだけでは引き渡さない。
 
 ## 環境変数
 
@@ -228,7 +228,7 @@ Session / Invite / Reset / Magic のトークンは、平文のまま Cookie・U
 - `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN`（開発既定は RP ID `auth.localhost`、オリジン `http://auth.localhost:3000`。RP ID は認証サーバーのホスト名）
 - `APP_URL`（開発既定 `http://auth.localhost:3000`。本番では `WEBAUTHN_ORIGIN` と origin が一致すること）
 - `APP_ID`（認証サーバー自身の `App.id`。既定 `auth`）
-- `PARENT_DOMAIN`（直下サブドメインの親。開発既定 `localhost`）
+- `PARENT_DOMAIN`（参加アプリと認証サーバーの親。開発既定 `localhost`。参加アプリのホストは親ドメイン自身か、その直下の1ラベル。認証サーバーのホストと `WEBAUTHN_RP_ID` は直下のサブドメイン。`localhost` の頂点は参加アプリにしない）
 - `MAIL_MODE` / `SMTP_*`
 - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`
 - `DB_LOG_LEVEL`（任意。`silent` / `error` / `warn` / `info` / `query`。未設定は本番 `warn`、開発 `query`）

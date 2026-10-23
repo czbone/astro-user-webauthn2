@@ -1,6 +1,6 @@
 import { resolveEffectivePermission } from '@/server/auth/permissions'
 import { AppDB, AppGrantDB, HandoffDB, SessionDB } from '@/server/db'
-import { isAppId, isDirectChildHost, isHandoffState, safeHandoffNext } from '@/server/auth/app-host'
+import { isAppId, isHandoffState, isParticipatingAppHost, safeHandoffNext } from '@/server/auth/app-host'
 import { authEnv } from '@/server/auth/env'
 import { authServerHost } from '@/server/auth/app-registration'
 import { createSessionForApp, readSessionFromToken, slideSession } from '@/server/auth/session'
@@ -80,7 +80,7 @@ export async function handleHandoff(c: Context): Promise<Response> {
   }
   const host = new URL(app.origin).hostname
   if (
-    !isDirectChildHost(host, authEnv.parentDomain()) ||
+    !isParticipatingAppHost(host, authEnv.parentDomain()) ||
     host === authServerHost() ||
     redirectOrigin !== app.origin ||
     !app.redirectUris.includes(redirectUri)

@@ -1,6 +1,6 @@
 import {
   isAppId,
-  isDirectChildHost,
+  isParticipatingAppHost,
   normalizeOrigin,
   normalizeRedirectUri,
   originSchemeAllowed
@@ -69,8 +69,8 @@ export function validateParticipatingApp(
   }
 
   const host = new URL(origin).hostname
-  if (!isDirectChildHost(host, authEnv.parentDomain())) {
-    return { ok: false, error: 'ホストは親ドメインの直下のサブドメインである必要があります' }
+  if (!isParticipatingAppHost(host, authEnv.parentDomain())) {
+    return { ok: false, error: 'ホストは親ドメインか、その直下のサブドメインである必要があります' }
   }
   if (host === authServerHost()) {
     return { ok: false, error: '認証サーバーと同じホストは登録できません' }

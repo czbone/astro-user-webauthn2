@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   isDirectChildHost,
+  isParticipatingAppHost,
   normalizeOrigin,
   normalizeRedirectUri,
   safeHandoffNext
@@ -16,6 +17,21 @@ describe('app host rules', () => {
     expect(isDirectChildHost('example.com', 'example.com')).toBe(false)
     expect(isDirectChildHost('foo.app.example.com', 'example.com')).toBe(false)
     expect(isDirectChildHost('app.example.com', 'example.co.jp')).toBe(false)
+  })
+
+  it('accepts the apex or one label for a participating app', () => {
+    expect(isParticipatingAppHost('Example.COM', 'example.com')).toBe(true)
+    expect(isParticipatingAppHost('app.example.com', 'example.com')).toBe(true)
+    expect(isParticipatingAppHost('www.example.com', 'example.com')).toBe(true)
+    expect(isParticipatingAppHost('app.localhost', 'localhost')).toBe(true)
+  })
+
+  it('rejects a nested host, another parent, a bad label, and the localhost apex', () => {
+    expect(isParticipatingAppHost('foo.app.example.com', 'example.com')).toBe(false)
+    expect(isParticipatingAppHost('app.example.com', 'example.co.jp')).toBe(false)
+    expect(isParticipatingAppHost('-app.example.com', 'example.com')).toBe(false)
+    expect(isParticipatingAppHost('app-.example.com', 'example.com')).toBe(false)
+    expect(isParticipatingAppHost('localhost', 'localhost')).toBe(false)
   })
 
   it('normalizes default ports away', () => {

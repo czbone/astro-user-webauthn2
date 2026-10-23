@@ -23,9 +23,9 @@
 
 参加アプリは HTTP のイントロスペクションを呼ばず、PostgreSQL と Redis へ直接接続します。接続権限で、書ける範囲を認証サーバーに限定します。
 
-アプリはサブドメインで分けます（例: `auth.example.com`、`app.example.com`）。Cookie の `Domain` は付けません。親ドメイン共通の Cookie は使わないので、あるホストへ届いた生トークンを、そのホストが他アプリへ再送できません。
+アプリはホストで分けます（例: `example.com`、`auth.example.com`、`app.example.com`）。Cookie の `Domain` は付けません。親ドメイン共通の Cookie は使わないので、あるホストへ届いた生トークンを、そのホストが他アプリへ再送できません。
 
-親ドメインは環境変数 `PARENT_DOMAIN` で一つに固定します。公開サフィックスからの推定はしません。許すホストは `{ラベル}.{PARENT_DOMAIN}` だけです。ラベルは1つで、小文字・数字・ハイフンです。頂点ドメインと、もう一段深いホストは拒否します。参加アプリを頂点ドメインに置く変更は [apex-host.md](./apex-host.md) で検討中です。確定するまでは、この節の拒否が優先します。`App` に親ドメイン列は置かず、正は各アプリの完全オリジンです。参加アプリのホストは認証サーバーのホストとは別です。開発は `PARENT_DOMAIN=localhost`、`auth.localhost` と `app.localhost` です。
+親ドメインは環境変数 `PARENT_DOMAIN` で一つに固定します。公開サフィックスからの推定はしません。`com` や `co.jp` を `PARENT_DOMAIN` にはしません。参加アプリのホストは、比較の前に小文字にしたうえで、`PARENT_DOMAIN` 自身か `{ラベル}.{PARENT_DOMAIN}` です。ラベルは1つで、小文字・数字・ハイフンです。先頭と末尾のハイフンは拒否します。もう一段深いホスト、認証サーバーと同じホスト、`PARENT_DOMAIN` が `localhost` のときの頂点 `localhost` は拒否します。`App` に親ドメイン列は置かず、正は各アプリの完全オリジンです。認証サーバーのホストは直下のサブドメインのままです。開発は `PARENT_DOMAIN=localhost`、`auth.localhost` と `app.localhost` です。詳細は [apex-host.md](./apex-host.md) です。
 
 ## 2. 接続権限
 
